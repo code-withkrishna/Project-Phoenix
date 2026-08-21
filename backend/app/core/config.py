@@ -34,6 +34,15 @@ class Settings(BaseSettings):
         default=10.0,
         alias="RAZORPAY_API_TIMEOUT_SECONDS",
     )
+    ai_provider: str = Field(default="mock", alias="AI_PROVIDER")
+    ai_model: str = Field(default="gpt-4o-mini", alias="AI_MODEL")
+    ai_api_key: str = Field(default="", alias="AI_API_KEY")
+    ai_api_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        alias="AI_API_BASE_URL",
+    )
+    ai_timeout_seconds: float = Field(default=15.0, alias="AI_TIMEOUT_SECONDS")
+
 
 
 @lru_cache

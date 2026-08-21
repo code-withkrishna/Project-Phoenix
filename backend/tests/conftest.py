@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -68,6 +69,13 @@ async def db_engine(test_env):
         echo=False,
         connect_args=connect_args,
     )
+    if TEST_DATABASE_URL.startswith("sqlite"):
+        @event.listens_for(engine.sync_engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
     bind_engine(engine, TEST_DATABASE_URL)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -76,6 +84,7 @@ async def db_engine(test_env):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+
 
 
 @pytest_asyncio.fixture

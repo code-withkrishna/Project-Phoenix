@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.repositories.ai_diagnoses import AIDiagnosisRepository
 from app.repositories.recovery_cases import RecoveryCaseRepository
+from app.schemas.ai import AIDiagnosisSummary
 from app.schemas.common import AuditLogEntry
 from app.schemas.recovery_case import (
     RecoveryCaseDetail,
@@ -46,7 +48,7 @@ async def get_recovery_case(
     case_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
 ) -> RecoveryCaseDetail:
-    """Retrieve a single recovery case with audit trail."""
+    """Retrieve a single recovery case with audit trail and AI diagnosis."""
     repo = RecoveryCaseRepository(session)
     case = await repo.get_by_id(case_id)
     if case is None:
@@ -55,4 +57,11 @@ async def get_recovery_case(
     audit_trail = await repo.get_audit_trail(case_id)
     detail = RecoveryCaseDetail.model_validate(case)
     detail.audit_trail = [AuditLogEntry.model_validate(entry) for entry in audit_trail]
+
+    diag_repo = AIDiagnosisRepository(session)
+    latest_diagnosis = await diag_repo.get_latest_by_case_id(case_id)
+    if latest_diagnosis is not None:
+        detail.ai_diagnosis = AIDiagnosisSummary.model_validate(latest_diagnosis)
+
     return detail
+

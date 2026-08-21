@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from app.schemas.ai import AIDiagnosisSummary
 from app.schemas.common import AuditLogEntry, ORMModel, PaginatedResponse
 
 
@@ -32,6 +33,8 @@ class RecoveryCaseDetail(RecoveryCaseSummary):
 
     failure_telemetry: dict = Field(default_factory=dict)
     audit_trail: list[AuditLogEntry] = Field(default_factory=list)
+    ai_diagnosis: AIDiagnosisSummary | None = None
+
 
 
 class RecoveryCaseListResponse(PaginatedResponse[RecoveryCaseSummary]):

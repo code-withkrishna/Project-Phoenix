@@ -1,14 +1,15 @@
 """Recovery case repository."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import case as sql_case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
 from app.models.recovery_case import RecoveryCase
+from app.schemas.ai import CustomerHistoryContext
 
 
 class RecoveryCaseRepository:
@@ -165,3 +166,66 @@ class RecoveryCaseRepository:
             .order_by(AuditLog.created_at.asc())
         )
         return list(result.scalars().all())
+
+    async def get_customer_history(
+        self,
+        customer_email: str | None,
+        customer_phone: str | None,
+        exclude_case_id: uuid.UUID | None = None,
+    ) -> CustomerHistoryContext:
+        """Aggregate deterministic historical metrics for a customer."""
+        or_conditions = []
+        if customer_email:
+            or_conditions.append(RecoveryCase.customer_email == customer_email)
+        if customer_phone:
+            or_conditions.append(RecoveryCase.customer_phone == customer_phone)
+
+        if not or_conditions:
+            return CustomerHistoryContext(
+                prior_failures_today=0,
+                lifetime_recoveries=0,
+                is_repeat_customer=False,
+            )
+
+        customer_filter = or_(*or_conditions)
+        if exclude_case_id is not None:
+            case_filter = (RecoveryCase.id != exclude_case_id) & customer_filter
+        else:
+            case_filter = customer_filter
+
+        twenty_four_hours_ago = datetime.now(UTC) - timedelta(hours=24)
+
+        stmt = select(
+            func.count().label("total_cases"),
+            func.coalesce(
+                func.sum(
+                    sql_case(
+                        (RecoveryCase.created_at >= twenty_four_hours_ago, 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("prior_failures_today"),
+            func.coalesce(
+                func.sum(
+                    sql_case(
+                        (RecoveryCase.is_recovered.is_(True), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("lifetime_recoveries"),
+        ).where(case_filter)
+
+        result = await self._session.execute(stmt)
+        row = result.one()
+        total_cases = int(row.total_cases)
+        prior_failures_today = int(row.prior_failures_today)
+        lifetime_recoveries = int(row.lifetime_recoveries)
+
+        return CustomerHistoryContext(
+            prior_failures_today=prior_failures_today,
+            lifetime_recoveries=lifetime_recoveries,
+            is_repeat_customer=total_cases > 0,
+        )
+
