@@ -22,8 +22,12 @@ from tests.fixtures.razorpay import (
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_valid_payment_failed_webhook(client, db_session):
     """Valid signed payment.failed webhook is ingested and acknowledged."""
+    respx.get("https://api.razorpay.com/v1/payments/pay_TEST_FIXTURE_001").mock(
+        return_value=httpx.Response(200, json=razorpay_payment_api_response(status="failed"))
+    )
     raw_body = payment_failed_raw_body()
     headers = webhook_headers(raw_body, event_id="event_integ_001")
 
@@ -80,8 +84,12 @@ async def test_missing_signature_rejected(client):
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_duplicate_webhook_deduplicated(client):
     """Duplicate event_id returns DEDUPLICATED."""
+    respx.get("https://api.razorpay.com/v1/payments/pay_TEST_FIXTURE_001").mock(
+        return_value=httpx.Response(200, json=razorpay_payment_api_response(status="failed"))
+    )
     raw_body = payment_failed_raw_body()
     headers = webhook_headers(raw_body, event_id="event_integ_dup")
 
@@ -152,8 +160,14 @@ async def test_unsupported_event_acknowledged(client, db_session, settings):
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_raw_payload_preserved(client, db_session):
     """Stored payload matches the original raw webhook bytes."""
+    respx.get("https://api.razorpay.com/v1/payments/pay_RAW_PRESERVE").mock(
+        return_value=httpx.Response(200, json=razorpay_payment_api_response(
+            payment_id="pay_RAW_PRESERVE", status="failed",
+        ))
+    )
     raw_body = payment_failed_raw_body(payment_id="pay_RAW_PRESERVE")
     headers = webhook_headers(raw_body, event_id="event_integ_raw")
 
@@ -202,8 +216,12 @@ async def test_end_to_end_creates_recovery_case(client, db_session, settings):
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_duplicate_webhook_flood(client, db_session):
     """Concurrent duplicate deliveries create exactly one stored event."""
+    respx.get("https://api.razorpay.com/v1/payments/pay_TEST_FIXTURE_001").mock(
+        return_value=httpx.Response(200, json=razorpay_payment_api_response(status="failed"))
+    )
     raw_body = payment_failed_raw_body()
     headers = webhook_headers(raw_body, event_id="event_integ_flood")
 
