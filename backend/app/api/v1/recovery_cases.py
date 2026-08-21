@@ -7,10 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.repositories.ai_diagnoses import AIDiagnosisRepository
+from app.repositories.recovery_actions import RecoveryActionRepository
 from app.repositories.recovery_cases import RecoveryCaseRepository
 from app.schemas.ai import AIDiagnosisSummary
 from app.schemas.common import AuditLogEntry
 from app.schemas.recovery_case import (
+    RecoveryActionSummary,
     RecoveryCaseDetail,
     RecoveryCaseListResponse,
     RecoveryCaseSummary,
@@ -48,7 +50,7 @@ async def get_recovery_case(
     case_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
 ) -> RecoveryCaseDetail:
-    """Retrieve a single recovery case with audit trail and AI diagnosis."""
+    """Retrieve a single recovery case with audit trail, AI diagnosis, and recovery actions."""
     repo = RecoveryCaseRepository(session)
     case = await repo.get_by_id(case_id)
     if case is None:
@@ -63,5 +65,10 @@ async def get_recovery_case(
     if latest_diagnosis is not None:
         detail.ai_diagnosis = AIDiagnosisSummary.model_validate(latest_diagnosis)
 
+    action_repo = RecoveryActionRepository(session)
+    actions = await action_repo.list_by_case_id(case_id)
+    detail.recovery_actions = [RecoveryActionSummary.model_validate(action) for action in actions]
+
     return detail
+
 

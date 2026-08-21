@@ -70,11 +70,14 @@ erDiagram
         string reference_id UK
         string payment_link_id UK
         string payment_link_url
-        string status
         bigint amount
+        string currency
+        string status
+        integer attempt_number
         timestamp expires_at
         timestamp created_at
         timestamp executed_at
+        timestamp updated_at
     }
 
     AUDIT_LOGS {
@@ -173,7 +176,7 @@ CREATE INDEX idx_ai_diagnoses_case_id ON ai_diagnoses(case_id);
 CREATE TABLE policy_evaluations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     case_id UUID NOT NULL REFERENCES recovery_cases(id) ON DELETE CASCADE,
-    decision VARCHAR(32) NOT NULL, -- 'PASSED', 'REJECTED', 'MANUAL_REVIEW'
+    decision VARCHAR(32) NOT NULL, -- 'ALLOW', 'REJECT', 'ESCALATE'
     evaluated_rules JSONB NOT NULL DEFAULT '[]'::jsonb,
     violations JSONB NOT NULL DEFAULT '[]'::jsonb,
     evaluated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -186,20 +189,23 @@ CREATE TABLE recovery_actions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     case_id UUID NOT NULL REFERENCES recovery_cases(id) ON DELETE CASCADE,
     action_type VARCHAR(64) NOT NULL DEFAULT 'CREATE_PAYMENT_LINK',
-    reference_id VARCHAR(128) NOT NULL UNIQUE,
+    reference_id VARCHAR(40) NOT NULL UNIQUE,
     payment_link_id VARCHAR(128) UNIQUE,
     payment_link_url VARCHAR(512),
     amount BIGINT NOT NULL,
     currency VARCHAR(8) NOT NULL DEFAULT 'INR',
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'ISSUED', 'PAID', 'EXPIRED', 'CANCELLED'
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'ISSUED', 'PAID', 'EXPIRED', 'CANCELLED', 'FAILED'
+    attempt_number INTEGER NOT NULL DEFAULT 1,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    executed_at TIMESTAMPTZ
+    executed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_recovery_actions_case_id ON recovery_actions(case_id);
 CREATE INDEX idx_recovery_actions_plink_id ON recovery_actions(payment_link_id);
 CREATE INDEX idx_recovery_actions_ref_id ON recovery_actions(reference_id);
+CREATE INDEX idx_recovery_actions_status ON recovery_actions(status);
 
 -- Table 6: Immutable Audit Logs
 CREATE TABLE audit_logs (

@@ -136,7 +136,7 @@ Retrieves complete 360-degree context for a recovery case, including raw payment
     "action_type": "CREATE_PAYMENT_LINK",
     "payment_link_id": "plink_O7f92zL34mUVwx",
     "payment_link_url": "https://rzp.io/i/Xyz12345",
-    "reference_id": "phx_rec_01J8F9X2Q9Z8K3V01N5A7B8C9D_1",
+    "reference_id": "PHX_7F4A21C9_01",
     "status": "PAID",
     "expires_at": "2026-08-21T09:00:00Z",
     "created_at": "2026-08-21T08:30:05Z",

@@ -29,3 +29,23 @@ class NormalizedPaymentFailedEvent(BaseModel):
     failure_reason: str | None = None
     failure_telemetry: dict = Field(default_factory=dict)
     raw_payload: dict = Field(default_factory=dict)
+
+
+class NormalizedPaymentLinkEvent(BaseModel):
+    """Phoenix-normalized representation of payment_link.* webhooks."""
+
+    event_id: str
+    event_type: str
+    payment_link_id: str
+    reference_id: str | None = None
+    payment_link_status: str
+    amount: int
+    amount_paid: int = 0
+    currency: str = "INR"
+    payment_id: str | None = None
+    payment_status: str | None = None
+    payment_amount: int | None = None
+    customer_email: str | None = None
+    customer_phone: str | None = None
+    raw_payload: dict = Field(default_factory=dict)
+

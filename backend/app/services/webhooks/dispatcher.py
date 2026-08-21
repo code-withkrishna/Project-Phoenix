@@ -11,11 +11,20 @@ from app.services.razorpay.client import RazorpayClient
 from app.services.razorpay.reconciliation import PaymentReconciliationService
 from app.services.recovery.case_service import RecoveryCaseService
 from app.services.webhooks.ingestion import WebhookIngestionService
-from app.services.webhooks.normalization import normalize_payment_failed
+from app.services.webhooks.normalization import (
+    normalize_payment_failed,
+    normalize_payment_link_event,
+)
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EVENTS = frozenset({"payment.failed"})
+SUPPORTED_EVENTS = frozenset({
+    "payment.failed",
+    "payment_link.paid",
+    "payment_link.expired",
+    "payment_link.cancelled",
+    "payment_link.partially_paid",
+})
 
 
 class WebhookDispatcher:
@@ -68,6 +77,34 @@ class WebhookDispatcher:
                 payload=event.payload,
             )
             await self._recovery_service.handle_payment_failed(normalized)
+        elif event.event_type == "payment_link.paid":
+            normalized_link = normalize_payment_link_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                payload=event.payload,
+            )
+            await self._recovery_service.handle_payment_link_paid(normalized_link)
+        elif event.event_type == "payment_link.expired":
+            normalized_link = normalize_payment_link_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                payload=event.payload,
+            )
+            await self._recovery_service.handle_payment_link_expired(normalized_link)
+        elif event.event_type == "payment_link.cancelled":
+            normalized_link = normalize_payment_link_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                payload=event.payload,
+            )
+            await self._recovery_service.handle_payment_link_cancelled(normalized_link)
+        elif event.event_type == "payment_link.partially_paid":
+            normalized_link = normalize_payment_link_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                payload=event.payload,
+            )
+            await self._recovery_service.handle_payment_link_partially_paid(normalized_link)
 
         await self._webhook_repo.mark_processed(event_id)
 

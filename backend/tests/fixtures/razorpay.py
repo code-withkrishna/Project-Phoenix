@@ -131,3 +131,189 @@ def order_paid_payload(*, event_id: str = "event_TEST_FIXTURE_ORDER_PAID") -> di
         "created_at": 1755765002,
         "_test_fixture_event_id": event_id,
     }
+
+
+def payment_link_paid_payload(
+    *,
+    event_id: str = "event_TEST_FIXTURE_PLINK_PAID",
+    payment_link_id: str = "plink_TEST_FIXTURE_001",
+    reference_id: str = "PHX_7F4A21C9_01",
+    payment_id: str = "pay_TEST_FIXTURE_CAPTURED_001",
+    amount: int = 499900,
+    amount_paid: int = 499900,
+    currency: str = "INR",
+    payment_status: str = "captured",
+) -> dict:
+    """Return a realistic Razorpay payment_link.paid webhook payload (TEST FIXTURE)."""
+    return {
+        "entity": "event",
+        "account_id": "acc_TEST_FIXTURE",
+        "event": "payment_link.paid",
+        "contains": ["payment_link", "payment"],
+        "payload": {
+            "payment_link": {
+                "entity": {
+                    "id": payment_link_id,
+                    "accept_partial": False,
+                    "amount": amount,
+                    "amount_paid": amount_paid,
+                    "currency": currency,
+                    "description": "TEST FIXTURE Payment Link",
+                    "reference_id": reference_id,
+                    "short_url": f"https://rzp.io/i/{payment_link_id}",
+                    "status": "paid",
+                    "customer": {
+                        "name": "Test Customer",
+                        "email": "testfixture@example.com",
+                        "contact": "+919876543210",
+                    },
+                    "created_at": 1755765005,
+                    "updated_at": 1755765730,
+                }
+            },
+            "payment": {
+                "entity": {
+                    "id": payment_id,
+                    "amount": amount_paid,
+                    "currency": currency,
+                    "status": payment_status,
+                    "order_id": f"order_{payment_link_id}",
+                    "method": "upi",
+                    "captured": payment_status == "captured",
+                }
+            },
+        },
+        "created_at": 1755765731,
+        "_test_fixture_event_id": event_id,
+    }
+
+
+def payment_link_expired_payload(
+    *,
+    event_id: str = "event_TEST_FIXTURE_PLINK_EXPIRED",
+    payment_link_id: str = "plink_TEST_FIXTURE_001",
+    reference_id: str = "PHX_7F4A21C9_01",
+    amount: int = 499900,
+) -> dict:
+    """Return a payment_link.expired webhook payload."""
+    return {
+        "entity": "event",
+        "account_id": "acc_TEST_FIXTURE",
+        "event": "payment_link.expired",
+        "contains": ["payment_link"],
+        "payload": {
+            "payment_link": {
+                "entity": {
+                    "id": payment_link_id,
+                    "accept_partial": False,
+                    "amount": amount,
+                    "amount_paid": 0,
+                    "currency": "INR",
+                    "reference_id": reference_id,
+                    "status": "expired",
+                }
+            }
+        },
+        "created_at": 1755768000,
+        "_test_fixture_event_id": event_id,
+    }
+
+
+def payment_link_cancelled_payload(
+    *,
+    event_id: str = "event_TEST_FIXTURE_PLINK_CANCELLED",
+    payment_link_id: str = "plink_TEST_FIXTURE_001",
+    reference_id: str = "PHX_7F4A21C9_01",
+    amount: int = 499900,
+) -> dict:
+    """Return a payment_link.cancelled webhook payload."""
+    return {
+        "entity": "event",
+        "account_id": "acc_TEST_FIXTURE",
+        "event": "payment_link.cancelled",
+        "contains": ["payment_link"],
+        "payload": {
+            "payment_link": {
+                "entity": {
+                    "id": payment_link_id,
+                    "accept_partial": False,
+                    "amount": amount,
+                    "amount_paid": 0,
+                    "currency": "INR",
+                    "reference_id": reference_id,
+                    "status": "cancelled",
+                }
+            }
+        },
+        "created_at": 1755766000,
+        "_test_fixture_event_id": event_id,
+    }
+
+
+def payment_link_partially_paid_payload(
+    *,
+    event_id: str = "event_TEST_FIXTURE_PLINK_PARTIAL",
+    payment_link_id: str = "plink_TEST_FIXTURE_001",
+    reference_id: str = "PHX_7F4A21C9_01",
+    amount: int = 499900,
+    amount_paid: int = 200000,
+) -> dict:
+    """Return a payment_link.partially_paid webhook payload."""
+    return {
+        "entity": "event",
+        "account_id": "acc_TEST_FIXTURE",
+        "event": "payment_link.partially_paid",
+        "contains": ["payment_link", "payment"],
+        "payload": {
+            "payment_link": {
+                "entity": {
+                    "id": payment_link_id,
+                    "accept_partial": True,
+                    "amount": amount,
+                    "amount_paid": amount_paid,
+                    "currency": "INR",
+                    "reference_id": reference_id,
+                    "status": "partially_paid",
+                }
+            },
+            "payment": {
+                "entity": {
+                    "id": "pay_TEST_PARTIAL_001",
+                    "amount": amount_paid,
+                    "currency": "INR",
+                    "status": "captured",
+                }
+            },
+        },
+        "created_at": 1755765500,
+        "_test_fixture_event_id": event_id,
+    }
+
+
+def payment_link_api_response(
+    *,
+    payment_link_id: str = "plink_TEST_FIXTURE_001",
+    reference_id: str = "PHX_7F4A21C9_01",
+    amount: int = 499900,
+    currency: str = "INR",
+    status: str = "created",
+    short_url: str = "https://rzp.io/i/plink_TEST_FIXTURE_001",
+) -> dict:
+    """Return a mock Razorpay Payment Link API response."""
+    return {
+        "id": payment_link_id,
+        "entity": "payment_link",
+        "amount": amount,
+        "currency": currency,
+        "accept_partial": False,
+        "reference_id": reference_id,
+        "description": "TEST FIXTURE Payment Link",
+        "short_url": short_url,
+        "status": status,
+        "customer": {
+            "email": "testfixture@example.com",
+            "contact": "+919876543210",
+        },
+        "created_at": 1755765005,
+    }
+

@@ -28,16 +28,35 @@ class RecoveryCaseSummary(ORMModel):
     updated_at: datetime
 
 
+class RecoveryActionSummary(ORMModel):
+    """Summary representation of a RecoveryAction."""
+
+    id: UUID
+    case_id: UUID
+    action_type: str
+    reference_id: str
+    payment_link_id: str | None = None
+    payment_link_url: str | None = None
+    amount: int
+    currency: str
+    status: str
+    attempt_number: int
+    expires_at: datetime
+    created_at: datetime
+    executed_at: datetime | None = None
+
+
 class RecoveryCaseDetail(RecoveryCaseSummary):
-    """Detailed recovery case including telemetry and audit trail."""
+    """Detailed recovery case including telemetry, audit trail, and actions."""
 
     failure_telemetry: dict = Field(default_factory=dict)
     audit_trail: list[AuditLogEntry] = Field(default_factory=list)
     ai_diagnosis: AIDiagnosisSummary | None = None
-
+    recovery_actions: list[RecoveryActionSummary] = Field(default_factory=list)
 
 
 class RecoveryCaseListResponse(PaginatedResponse[RecoveryCaseSummary]):
     """Paginated recovery case list response."""
 
     pass
+

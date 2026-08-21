@@ -60,7 +60,7 @@ Runs exclusively against real Razorpay Test Mode using configured `rzp_test_*` c
 3. **Step 3:** Phoenix verifies HMAC-SHA256 signature, deduplicates via `x-razorpay-event-id`, and reconciles status (`GET /v1/payments/{id}`).
 4. **Step 4:** Context Engine extracts telemetry; AI diagnostic generates structured JSON plan.
 5. **Step 5:** Policy Engine validates invariants (enforcing $\ge 15\text{m}$ expiry, cooldown, retry count).
-6. **Step 6:** Razorpay client calls `POST /v1/payment_links` with `reference_id` (`phx_rec_<case_id>_<action_id>`).
+6. **Step 6:** Razorpay client calls `POST /v1/payment_links` with `reference_id` (`PHX_<short_case_id>_<sequence>`).
 7. **Step 7:** Customer opens the real `short_url` (Razorpay hosted page) and completes test payment.
 8. **Step 8:** Razorpay servers deliver genuine `payment_link.paid` webhook.
 9. **Step 9:** Phoenix transitions case to `RECOVERED` and writes the immutable audit ledger.

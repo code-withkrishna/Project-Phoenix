@@ -98,9 +98,10 @@ stateDiagram-v2
 - **Scenario:** Customer opened a second tab and completed checkout before Phoenix generated a link.
 - **Resolution:** If the case is in `DETECTED`, `DIAGNOSING`, or `PLAN_GENERATED`, the case transitions to `RESOLVED_EXTERNALLY`. If a link was already issued (`AWAITING_PAYMENT`), Phoenix calls Razorpay to cancel the outstanding payment link (`POST /v1/payment_links/{id}/cancel`) and transitions the case to `RESOLVED_EXTERNALLY`.
 
-### 5.3 Case C: Duplicate Webhook Events
-- **Scenario:** Razorpay webhook retry delivers identical payload twice.
-- **Resolution:** Caught at the database level by unique constraint on `raw_webhook_events.event_id`. State machine is not triggered again.
+### 5.3 Protected Terminal States & Out-of-Order Webhooks
+- **Terminal State Protection:** Once a case enters `RECOVERED`, it is an immutable terminal success state. A late arriving `payment_link.expired` or `payment_link.cancelled` MUST NOT mutate `RECOVERED`.
+- **Payment Verification:** `payment_link.paid` triggers recovery only when the underlying payment entity has `status == 'captured'` (`authorized != recovered`).
+- **Partial Payments:** `payment_link.partially_paid` is audited but does NOT mark case `RECOVERED` as `accept_partial = false` is standard policy.
 
 ---
 

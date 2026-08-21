@@ -170,14 +170,15 @@ When the customer completes payment through the Phoenix-generated payment link.
 - **Authentication:** HTTP Basic Auth
 - **Enforced Constraints:**
   - `expire_by`: Must be a Unix timestamp at least **15 minutes** in the future.
-  - `reference_id`: Unique merchant reference key (`phx_rec_<case_id>_<action_id>`).
+  - `reference_id`: Unique compact reference key (`PHX_<short_case_id>_<sequence>`, max 40 chars, e.g., `PHX_7F4A21C9_01`).
+  - `accept_partial`: Strictly `false`.
 - **Request Body:**
 ```json
 {
   "amount": 499900,
   "currency": "INR",
   "accept_partial": false,
-  "reference_id": "phx_rec_01J8F9X2Q9Z8K3V01N5A7B8C9D_1",
+  "reference_id": "PHX_7F4A21C9_01",
   "description": "Complete your order with instant 1-click payment.",
   "customer": {
     "name": "Customer Name",
@@ -197,7 +198,12 @@ When the customer completes payment through the Phoenix-generated payment link.
 }
 ```
 
-### 4.3 Cancel Payment Link
+### 4.3 Query Payment Link by Reference ID (Timeout Reconciliation)
+`GET https://api.razorpay.com/v1/payment_links?reference_id={reference_id}`
+- **Authentication:** HTTP Basic Auth
+- **Usage:** When `POST /v1/payment_links` times out or returns ambiguous network failure, query by reference_id to check if Razorpay created the link before deciding to retry or fail.
+
+### 4.4 Cancel Payment Link
 `POST https://api.razorpay.com/v1/payment_links/{payment_link_id}/cancel`
 - **Authentication:** HTTP Basic Auth
 - **Usage:** Cancels an active payment link if the customer pays through another channel or if an operator cancels the case.

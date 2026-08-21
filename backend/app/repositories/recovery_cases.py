@@ -25,6 +25,13 @@ class RecoveryCaseRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_update(self, case_id: uuid.UUID) -> RecoveryCase | None:
+        """Fetch a recovery case by primary key with FOR UPDATE row lock."""
+        result = await self._session.execute(
+            select(RecoveryCase).where(RecoveryCase.id == case_id).with_for_update()
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_payment_id(self, payment_id: str) -> RecoveryCase | None:
         """Fetch a recovery case by Razorpay payment ID."""
         result = await self._session.execute(
