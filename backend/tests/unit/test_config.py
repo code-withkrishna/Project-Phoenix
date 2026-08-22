@@ -14,7 +14,7 @@ def test_settings_defaults(monkeypatch):
     ):
         monkeypatch.delenv(key, raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.app_name == "phoenix-backend"
     assert settings.environment == "development"
