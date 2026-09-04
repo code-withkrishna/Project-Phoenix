@@ -7,9 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.repositories.recovery_cases import RecoveryCaseRepository
 from app.repositories.webhook_events import WebhookEventRepository
+from app.services.ai.base import AIProvider
+from app.services.ai.factory import get_ai_provider
+from app.services.policy.engine import PolicyEngine
+from app.services.policy.models import MerchantPolicy
 from app.services.razorpay.client import RazorpayClient
 from app.services.razorpay.reconciliation import PaymentReconciliationService
 from app.services.recovery.case_service import RecoveryCaseService
+from app.services.recovery.execution_guard import ExecutionGuard
+from app.services.recovery.orchestrator import RecoveryOrchestrator
 from app.services.webhooks.ingestion import WebhookIngestionService
 from app.services.webhooks.normalization import (
     normalize_payment_failed,
@@ -36,6 +42,11 @@ class WebhookDispatcher:
         settings: Settings,
         *,
         razorpay_client: RazorpayClient | None = None,
+        ai_provider: AIProvider | None = None,
+        policy_engine: PolicyEngine | None = None,
+        execution_guard: ExecutionGuard | None = None,
+        merchant_policy: MerchantPolicy | None = None,
+        auto_orchestrate: bool | None = None,
     ) -> None:
         self._session = session
         self._settings = settings
@@ -44,7 +55,25 @@ class WebhookDispatcher:
         self._owns_client = razorpay_client is None
         self._razorpay_client = razorpay_client or RazorpayClient(settings)
         self._reconciliation = PaymentReconciliationService(self._razorpay_client)
-        self._recovery_service = RecoveryCaseService(session, self._reconciliation)
+        self._auto_orchestrate = (
+            auto_orchestrate
+            if auto_orchestrate is not None
+            else getattr(settings, "auto_orchestrate", True)
+        )
+        self._orchestrator = RecoveryOrchestrator(
+            session=session,
+            razorpay_client=self._razorpay_client,
+            ai_provider=ai_provider or get_ai_provider(settings),
+            policy_engine=policy_engine,
+            execution_guard=execution_guard,
+        )
+        self._recovery_service = RecoveryCaseService(
+            session,
+            self._reconciliation,
+            orchestrator=self._orchestrator if self._auto_orchestrate else None,
+            merchant_policy=merchant_policy,
+        )
+
 
     async def close(self) -> None:
         """Close owned HTTP resources."""

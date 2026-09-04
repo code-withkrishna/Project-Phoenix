@@ -84,6 +84,26 @@ async def test_missing_signature_rejected(client):
 
 
 @pytest.mark.asyncio
+async def test_missing_webhook_secret_returns_500(client, monkeypatch):
+    """Missing server webhook secret returns 500 server configuration error."""
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", "")
+    get_settings.cache_clear()
+
+    raw_body = payment_failed_raw_body()
+    headers = webhook_headers(raw_body, event_id="event_integ_no_secret")
+    response = await client.post(
+        "/api/v1/webhooks/razorpay",
+        content=raw_body,
+        headers=headers,
+    )
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Server webhook secret not configured"
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_duplicate_webhook_deduplicated(client):
     """Duplicate event_id returns DEDUPLICATED."""

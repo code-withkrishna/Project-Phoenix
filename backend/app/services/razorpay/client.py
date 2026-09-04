@@ -38,7 +38,39 @@ class RazorpayClient:
         if self._owns_client:
             await self._client.aclose()
 
+    async def create_order(
+        self,
+        *,
+        amount: int,
+        currency: str = "INR",
+        receipt: str | None = None,
+        notes: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Create a new standard Order via Razorpay API."""
+        payload: dict[str, Any] = {
+            "amount": amount,
+            "currency": currency,
+        }
+        if receipt:
+            payload["receipt"] = receipt
+        if notes:
+            payload["notes"] = notes
+
+        try:
+            response = await self._client.post("/v1/orders", json=payload)
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RazorpayAPIError(408, "Request timed out") from exc
+        except httpx.HTTPStatusError as exc:
+            raise RazorpayAPIError(
+                exc.response.status_code,
+                exc.response.text,
+            ) from exc
+
+        return response.json()
+
     async def get_payment(self, payment_id: str) -> dict[str, Any]:
+
         """Fetch authoritative payment status from Razorpay."""
         try:
             response = await self._client.get(f"/v1/payments/{payment_id}")
@@ -116,10 +148,21 @@ class RazorpayClient:
                 return None
             response.raise_for_status()
             data = response.json()
-            # Razorpay returns {"payment_links": [...], "count": ...} or list of items
-            links = data.get("payment_links", []) if isinstance(data, dict) else data
+            # Razorpay returns {"payment_links": [...]}, {"items": [...]}, or list of items
+            if isinstance(data, dict):
+                links = data.get("payment_links")
+                if links is None:
+                    links = data.get("items", [])
+            elif isinstance(data, list):
+                links = data
+            else:
+                links = []
+
+            if not isinstance(links, list):
+                links = []
+
             for link in links:
-                if link.get("reference_id") == reference_id:
+                if isinstance(link, dict) and link.get("reference_id") == reference_id:
                     return link
             return None
         except httpx.TimeoutException as exc:

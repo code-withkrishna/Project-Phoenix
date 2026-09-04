@@ -37,3 +37,7 @@ Thumbs.db
 
 # Qodo
 .qodo/
+
+# Agent & MCP local credentials
+.agents/mcp_config.json
+

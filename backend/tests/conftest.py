@@ -39,6 +39,7 @@ def test_env(monkeypatch):
     monkeypatch.setenv("RAZORPAY_KEY_ID", "rzp_test_fixture")
     monkeypatch.setenv("RAZORPAY_KEY_SECRET", "test_key_secret_fixture")
     monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("AUTO_ORCHESTRATE", "false")
 
 
 @pytest.fixture

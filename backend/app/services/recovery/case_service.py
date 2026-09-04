@@ -1,11 +1,14 @@
 import logging
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.recovery_actions import RecoveryActionRepository
 from app.repositories.recovery_cases import RecoveryCaseRepository
 from app.schemas.webhook import NormalizedPaymentFailedEvent, NormalizedPaymentLinkEvent
+from app.services.policy.models import MerchantPolicy
 from app.services.razorpay.reconciliation import PaymentReconciliationService
+from app.services.recovery.orchestrator import OrchestrationResult, RecoveryOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +20,16 @@ class RecoveryCaseService:
         self,
         session: AsyncSession,
         reconciliation_service: PaymentReconciliationService,
+        *,
+        orchestrator: RecoveryOrchestrator | None = None,
+        merchant_policy: MerchantPolicy | None = None,
     ) -> None:
         self._session = session
         self._repo = RecoveryCaseRepository(session)
         self._action_repo = RecoveryActionRepository(session)
         self._reconciliation = reconciliation_service
+        self._orchestrator = orchestrator
+        self._merchant_policy = merchant_policy
 
     async def handle_payment_failed(
         self,
@@ -111,6 +119,33 @@ class RecoveryCaseService:
                 case.id,
                 event.payment_id,
             )
+
+        # Autonomous Orchestration Bridge: If orchestrator configured, trigger pipeline for DETECTED case
+        if self._orchestrator is not None and case.status == "DETECTED":
+            logger.info(
+                "Triggering autonomous recovery orchestration for case: case_id=%s",
+                case.id,
+            )
+            await self._orchestrator.orchestrate_case(
+                case_or_id=case.id,
+                policy=self._merchant_policy,
+            )
+
+
+    async def orchestrate_case(
+        self,
+        case_id: UUID,
+        policy: MerchantPolicy | None = None,
+    ) -> OrchestrationResult | None:
+        """Manually or programmatically trigger autonomous recovery orchestration for a case."""
+        if self._orchestrator is None:
+            logger.warning("Orchestrator not configured on RecoveryCaseService")
+            return None
+        return await self._orchestrator.orchestrate_case(
+            case_id,
+            policy=policy or self._merchant_policy,
+        )
+
 
     async def handle_payment_link_paid(
         self,

@@ -45,6 +45,13 @@ def create_app() -> FastAPI:
     application.include_router(health_router)
     application.include_router(api_v1_router)
 
+    from fastapi.responses import RedirectResponse
+
+    @application.get("/", include_in_schema=False)
+    @application.get("/checkout", include_in_schema=False)
+    async def root_checkout_redirect():
+        return RedirectResponse(url="/api/v1/checkout/portal")
+
     @application.exception_handler(WebhookIngestionError)
     async def webhook_ingestion_error_handler(
         _request: Request,
@@ -53,6 +60,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
     return application
+
 
 
 app = create_app()

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
         alias="AI_API_BASE_URL",
     )
     ai_timeout_seconds: float = Field(default=15.0, alias="AI_TIMEOUT_SECONDS")
+    auto_orchestrate: bool = Field(default=True, alias="AUTO_ORCHESTRATE")
 
 
 

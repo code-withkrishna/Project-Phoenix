@@ -33,7 +33,7 @@ async def receive_razorpay_webhook(
 
     if not settings.razorpay_webhook_secret:
         logger.error("Webhook secret not configured")
-        raise HTTPException(status_code=401, detail="Webhook verification failed")
+        raise HTTPException(status_code=500, detail="Server webhook secret not configured")
 
     if not verify_razorpay_webhook_signature(
         raw_body,

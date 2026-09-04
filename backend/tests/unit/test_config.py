@@ -29,3 +29,4 @@ def test_settings_defaults(monkeypatch):
 def test_get_settings_is_cached():
     """Settings loader returns a singleton instance."""
     assert get_settings() is get_settings()
+

@@ -119,6 +119,46 @@ async def test_get_payment_link_by_reference(razorpay_client: RazorpayClient) ->
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_get_payment_link_by_reference_formats(razorpay_client: RazorpayClient) -> None:
+    """GET /v1/payment_links parses payment_links dict, items dict, direct list, and malformed data."""
+    # 1. Standard payment_links key
+    respx.get("https://api.razorpay.com/v1/payment_links").respond(
+        status_code=200,
+        json={"count": 1, "payment_links": [{"id": "plink_KEY_1", "reference_id": "REF_KEY_1"}]},
+    )
+    res_links = await razorpay_client.get_payment_link_by_reference("REF_KEY_1")
+    assert res_links is not None
+    assert res_links["id"] == "plink_KEY_1"
+
+    # 2. items key in dict
+    respx.get("https://api.razorpay.com/v1/payment_links").respond(
+        status_code=200,
+        json={"count": 1, "items": [{"id": "plink_ITEM_1", "reference_id": "REF_ITEM_1"}]},
+    )
+    res_items = await razorpay_client.get_payment_link_by_reference("REF_ITEM_1")
+    assert res_items is not None
+    assert res_items["id"] == "plink_ITEM_1"
+
+    # 3. Direct list response
+    respx.get("https://api.razorpay.com/v1/payment_links").respond(
+        status_code=200,
+        json=[{"id": "plink_LIST_1", "reference_id": "REF_LIST_1"}],
+    )
+    res_list = await razorpay_client.get_payment_link_by_reference("REF_LIST_1")
+    assert res_list is not None
+    assert res_list["id"] == "plink_LIST_1"
+
+    # 4. Malformed/empty response
+    respx.get("https://api.razorpay.com/v1/payment_links").respond(
+        status_code=200,
+        json={"unexpected_key": "some_string", "count": 0},
+    )
+    res_malformed = await razorpay_client.get_payment_link_by_reference("REF_ANY")
+    assert res_malformed is None
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_cancel_payment_link(razorpay_client: RazorpayClient) -> None:
     """POST /v1/payment_links/{id}/cancel cancels payment link."""
     respx.post("https://api.razorpay.com/v1/payment_links/plink_123/cancel").respond(
@@ -127,3 +167,4 @@ async def test_cancel_payment_link(razorpay_client: RazorpayClient) -> None:
     )
     res = await razorpay_client.cancel_payment_link("plink_123")
     assert res["status"] == "cancelled"
+
