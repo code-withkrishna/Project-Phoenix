@@ -15,7 +15,7 @@ class DecisionType(str, Enum):
 
 
 class PolicyRuleId(str, Enum):
-    """Approved policy rule identifiers POL-001 through POL-007."""
+    """Approved policy rule identifiers POL-001 through POL-008."""
 
     POL_001 = "POL-001"  # Action Whitelist
     POL_002 = "POL-002"  # Recovery Eligibility
@@ -24,6 +24,7 @@ class PolicyRuleId(str, Enum):
     POL_005 = "POL-005"  # Customer Cooldown
     POL_006 = "POL-006"  # Retry Limits
     POL_007 = "POL-007"  # Merchant Constraints
+    POL_008 = "POL-008"  # High-Value & Low-Confidence Escalation
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,8 @@ class MerchantPolicy:
     customer_cooldown_hours: int = 2
     min_amount_paise: int = 10000  # ₹100
     max_amount_paise: int = 50000000  # ₹500,000
+    high_value_escalation_paise: int = 1000000  # ₹10,000 triggers human review
+    min_confidence_score: float = 0.50
     auto_execute_enabled: bool = True
 
 

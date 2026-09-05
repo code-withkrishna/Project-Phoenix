@@ -95,6 +95,26 @@ class RecoveryExecutor:
             },
         )
 
+        if decision.decision == DecisionType.ESCALATE:
+            target_status = "ESCALATED"
+            case = await self._case_repo.update_status(
+                case,
+                new_status=target_status,
+                trigger="POLICY_ESCALATED_HITL",
+                actor="DETERMINISTIC_POLICY_ENGINE",
+                context_metadata={
+                    "reason_codes": decision.reason_codes,
+                    "violations": [v.message for v in decision.violations],
+                    "escalation_note": "Case escalated for merchant human review.",
+                },
+            )
+            return ExecutionResult(
+                success=False,
+                case=case,
+                decision=decision,
+                error="Case escalated for manual merchant human review",
+            )
+
         if decision.decision != DecisionType.ALLOW:
             target_status = "POLICY_REJECTED"
             case = await self._case_repo.update_status(
@@ -123,8 +143,8 @@ class RecoveryExecutor:
             context_metadata={"action": decision.action},
         )
 
-        # Handle non-financial action cleanly
-        if decision.action == "DO_NOT_RECOVER":
+        # Handle non-financial or deferred actions cleanly
+        if decision.action in ("DO_NOT_RECOVER", "RETRY_LATER", "CUSTOMER_ACTION", "HUMAN_REVIEW"):
             return ExecutionResult(
                 success=True,
                 case=case,

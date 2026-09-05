@@ -36,7 +36,25 @@ class RecoveryCaseService:
         event: NormalizedPaymentFailedEvent,
     ) -> None:
         """Reconcile payment state and create recovery case when genuinely failed."""
-        reconciliation = await self._reconciliation.reconcile_payment(event.payment_id)
+        from app.services.razorpay.client import RazorpayAPIError
+
+        try:
+            reconciliation = await self._reconciliation.reconcile_payment(event.payment_id)
+        except RazorpayAPIError as exc:
+            logger.warning(
+                "Payment reconciliation lookup failed for %s (code=%s): %s. Falling back to uncaptured/failed.",
+                event.payment_id,
+                exc.status_code,
+                exc.message,
+            )
+            reconciliation = self._reconciliation.classify_without_api("failed")
+        except Exception as exc:
+            logger.warning(
+                "Unexpected error reconciling payment %s: %s. Falling back to uncaptured/failed.",
+                event.payment_id,
+                exc,
+            )
+            reconciliation = self._reconciliation.classify_without_api("failed")
 
         if reconciliation.is_resolved:
             existing = await self._repo.get_by_payment_id(event.payment_id)

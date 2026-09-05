@@ -18,6 +18,7 @@ from app.schemas.ai import AIDiagnosisMetadata, RecoveryPlan
 from app.services.ai.base import AIProvider
 from app.services.ai.factory import get_ai_provider
 from app.services.recovery.context_engine import ContextEngine
+from app.services.recovery.economics import EconomicDecisionEngine
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +66,14 @@ class AIRecoveryPlanner:
         self,
         session: AsyncSession,
         ai_provider: AIProvider | None = None,
+        economic_engine: EconomicDecisionEngine | None = None,
     ) -> None:
         self._session = session
         self._case_repo = RecoveryCaseRepository(session)
         self._diagnosis_repo = AIDiagnosisRepository(session)
         self._context_engine = ContextEngine(session)
         self._provider = ai_provider or get_ai_provider()
+        self._economics = economic_engine or EconomicDecisionEngine()
 
     async def plan_recovery(self, case_or_id: RecoveryCase | UUID) -> PlannerResult:
         """Execute AI diagnostic and planning workflow for a recovery case.
@@ -80,8 +83,9 @@ class AIRecoveryPlanner:
             2. Build sanitized DiagnosticContext.
             3. Call AIProvider for structured plan.
             4. Strictly validate RecoveryPlan (with at most ONE bounded correction).
-            5. On success: Persist AIDiagnosis, transition to PLAN_GENERATED, and log audit.
-            6. On failure: Fail closed, transition to ESCALATED, and log audit.
+            5. Run Economic Decision Engine for Expected Net Recovery.
+            6. On success: Persist AIDiagnosis, transition to PLAN_GENERATED, and log audit.
+            7. On failure: Fail closed, transition to ESCALATED, and log audit.
         """
         if isinstance(case_or_id, UUID):
             case = await self._case_repo.get_by_id(case_or_id)
@@ -139,8 +143,22 @@ class AIRecoveryPlanner:
             if plan is None:
                 raise ValueError("Failed to generate a valid RecoveryPlan")
 
-            # 5. Persist AIDiagnosis record with sanitized raw_response
+            # 5. Calculate Expected Net Recovery & Economic Breakdown
+            econ_eval = self._economics.evaluate(
+                context=context,
+                root_cause=plan.root_cause_category,
+                raw_confidence=plan.confidence_score,
+                proposed_action=plan.recommended_action,
+            )
+            plan.expected_net_recovery_paise = econ_eval.expected_net_recovery_paise
+            plan.recovery_probability = econ_eval.recovery_probability
+            plan.economic_reasons = econ_eval.reasons
+
+            # 6. Persist AIDiagnosis record with sanitized raw_response and economic evaluation
             sanitized_response = sanitize_raw_response(metadata.raw_response)
+            if isinstance(sanitized_response, dict):
+                sanitized_response["economic_evaluation"] = econ_eval.to_dict()
+
             diagnosis = await self._diagnosis_repo.create(
                 case_id=case.id,
                 model_name=metadata.model_name,
@@ -156,7 +174,7 @@ class AIRecoveryPlanner:
                 latency_ms=metadata.latency_ms,
             )
 
-            # 6. Transition state machine to PLAN_GENERATED
+            # 7. Transition state machine to PLAN_GENERATED
             case = await self._case_repo.update_status(
                 case,
                 new_status="PLAN_GENERATED",
@@ -168,15 +186,18 @@ class AIRecoveryPlanner:
                     "root_cause_category": plan.root_cause_category.value,
                     "confidence_score": plan.confidence_score,
                     "recommended_action": plan.recommended_action.value,
+                    "expected_net_recovery_paise": plan.expected_net_recovery_paise,
+                    "is_economically_viable": econ_eval.is_economically_viable,
                     "latency_ms": metadata.latency_ms,
                 },
             )
 
             logger.info(
-                "AI Recovery Plan generated successfully: case_id=%s root_cause=%s action=%s",
+                "AI Recovery Plan generated successfully: case_id=%s root_cause=%s action=%s ENR=₹%.2f",
                 case.id,
                 plan.root_cause_category.value,
                 plan.recommended_action.value,
+                (plan.expected_net_recovery_paise or 0) / 100,
             )
 
             return PlannerResult(

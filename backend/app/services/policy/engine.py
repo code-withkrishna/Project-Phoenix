@@ -18,7 +18,14 @@ from app.services.policy.models import (
 
 logger = logging.getLogger(__name__)
 
-WHITELISTED_ACTIONS = frozenset({"CREATE_PAYMENT_LINK", "DISPATCH_PAYMENT_LINK", "DO_NOT_RECOVER"})
+WHITELISTED_ACTIONS = frozenset({
+    "CREATE_PAYMENT_LINK",
+    "DISPATCH_PAYMENT_LINK",
+    "RETRY_LATER",
+    "CUSTOMER_ACTION",
+    "HUMAN_REVIEW",
+    "DO_NOT_RECOVER",
+})
 
 
 class PolicyEngine:
@@ -374,8 +381,48 @@ class PolicyEngine:
                     )
                 )
 
+            # POL-008: High-Value & Low-Confidence Escalation
+            is_escalation_required = False
+            escalation_details = []
+            if canonical_action == "HUMAN_REVIEW":
+                is_escalation_required = True
+                escalation_details.append("Action specifies manual human review")
+            if policy.high_value_escalation_paise > 0 and authoritative_amount >= policy.high_value_escalation_paise:
+                is_escalation_required = True
+                escalation_details.append(f"Amount {authoritative_amount} paise >= high-value threshold {policy.high_value_escalation_paise} paise")
+            if plan.confidence_score < getattr(policy, "min_confidence_score", 0.50):
+                is_escalation_required = True
+                escalation_details.append(f"Confidence score {plan.confidence_score:.2f} < threshold {getattr(policy, 'min_confidence_score', 0.50):.2f}")
+
+            if is_escalation_required and not violations:
+                reason_codes.append("REQUIRES_HUMAN_REVIEW")
+                evaluated_rules.append(
+                    PolicyRuleResult(
+                        rule_id=PolicyRuleId.POL_008.value,
+                        rule_name="High-Value & Low-Confidence Escalation",
+                        passed=False,
+                        details="; ".join(escalation_details),
+                        code="REQUIRES_HUMAN_REVIEW",
+                    )
+                )
+            else:
+                evaluated_rules.append(
+                    PolicyRuleResult(
+                        rule_id=PolicyRuleId.POL_008.value,
+                        rule_name="High-Value & Low-Confidence Escalation",
+                        passed=True,
+                        details="Within autonomous limits.",
+                    )
+                )
+
             # Final Decision Resolution
-            decision = DecisionType.ALLOW if not violations else DecisionType.REJECT
+            if violations:
+                decision = DecisionType.REJECT
+            elif is_escalation_required:
+                decision = DecisionType.ESCALATE
+            else:
+                decision = DecisionType.ALLOW
+
             constraints = {
                 "expiry_minutes": expiry_minutes,
                 "amount": authoritative_amount,

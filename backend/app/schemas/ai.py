@@ -22,6 +22,9 @@ class RecommendedAction(str, Enum):
     """Allowed recovery actions proposed by the AI."""
 
     DISPATCH_PAYMENT_LINK = "DISPATCH_PAYMENT_LINK"
+    RETRY_LATER = "RETRY_LATER"
+    CUSTOMER_ACTION = "CUSTOMER_ACTION"
+    HUMAN_REVIEW = "HUMAN_REVIEW"
     DO_NOT_RECOVER = "DO_NOT_RECOVER"
 
 
@@ -47,6 +50,9 @@ class MerchantConstraintsContext(BaseModel):
     allowed_actions: list[str] = Field(
         default_factory=lambda: [
             RecommendedAction.DISPATCH_PAYMENT_LINK.value,
+            RecommendedAction.RETRY_LATER.value,
+            RecommendedAction.CUSTOMER_ACTION.value,
+            RecommendedAction.HUMAN_REVIEW.value,
             RecommendedAction.DO_NOT_RECOVER.value,
         ]
     )
@@ -105,6 +111,20 @@ class RecoveryPlan(BaseModel):
         max_length=160,
         description="Customer-facing notification message",
     )
+    expected_net_recovery_paise: int | None = Field(
+        default=None,
+        description="Calculated Expected Net Recovery in paise",
+    )
+    recovery_probability: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Estimated probability of successful recovery",
+    )
+    economic_reasons: list[str] = Field(
+        default_factory=list,
+        description="Transparent economic and decision reasoning factors",
+    )
 
 
 class AIDiagnosisMetadata(BaseModel):
@@ -129,5 +149,6 @@ class AIDiagnosisSummary(ORMModel):
     recommended_action: str
     suggested_expiry_minutes: int | None = None
     suggested_customer_note: str | None = None
+    raw_response: dict[str, Any] | None = None
     created_at: datetime
 

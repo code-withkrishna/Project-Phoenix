@@ -74,6 +74,36 @@ class MockAIProvider(AIProvider):
                 link_expiry_minutes=15,
                 customer_facing_message="Payment could not be completed. Please contact support.",
             )
+        elif "human_review" in error_reason or (context.amount_paise >= 1000000 and "high_value" in error_reason):
+            plan = RecoveryPlan(
+                root_cause_category=RootCauseCategory.USER_FRICTION,
+                confidence_score=0.75,
+                diagnostic_summary="High-value transaction requires merchant manual verification prior to recovery execution.",
+                recommended_action=RecommendedAction.HUMAN_REVIEW,
+                urgency=UrgencyLevel.MEDIUM,
+                link_expiry_minutes=60,
+                customer_facing_message="Your high-value order is pending verification.",
+            )
+        elif "retry_later" in error_reason or "issuer_down" in error_reason:
+            plan = RecoveryPlan(
+                root_cause_category=RootCauseCategory.TECHNICAL_GATEWAY_ERROR,
+                confidence_score=0.86,
+                diagnostic_summary="Temporary issuing bank outage detected. Deferred recovery scheduled for peak bank uptime.",
+                recommended_action=RecommendedAction.RETRY_LATER,
+                urgency=UrgencyLevel.LOW,
+                link_expiry_minutes=180,
+                customer_facing_message="Issuing bank is experiencing temporary downtime. We will retry your payment shortly.",
+            )
+        elif "switch_method" in error_reason or "card_expired" in error_reason:
+            plan = RecoveryPlan(
+                root_cause_category=RootCauseCategory.INSTRUMENT_INVALID,
+                confidence_score=0.91,
+                diagnostic_summary="Card expired. Prompt customer to switch to active UPI or alternate payment method.",
+                recommended_action=RecommendedAction.CUSTOMER_ACTION,
+                urgency=UrgencyLevel.HIGH,
+                link_expiry_minutes=60,
+                customer_facing_message="Your card is expired. Tap here to select an alternate payment method.",
+            )
         elif "insufficient_funds" in error_reason or "low_balance" in error_reason:
             plan = RecoveryPlan(
                 root_cause_category=RootCauseCategory.INSUFFICIENT_FUNDS,
@@ -84,7 +114,7 @@ class MockAIProvider(AIProvider):
                 link_expiry_minutes=1440,
                 customer_facing_message="Your payment could not be processed. Complete it with this link within 24 hours.",
             )
-        elif any(term in error_reason for term in ["card_expired", "invalid_card", "invalid_vpa"]):
+        elif any(term in error_reason for term in ["invalid_card", "invalid_vpa"]):
             plan = RecoveryPlan(
                 root_cause_category=RootCauseCategory.INSTRUMENT_INVALID,
                 confidence_score=0.92,
@@ -104,7 +134,7 @@ class MockAIProvider(AIProvider):
                 link_expiry_minutes=30,
                 customer_facing_message="Complete your order instantly with 1-click checkout.",
             )
-        elif "GATEWAY_ERROR" in error_code or any(term in error_reason for term in ["bank", "gateway_timeout", "downtime", "issuer_down"]):
+        elif "GATEWAY_ERROR" in error_code or any(term in error_reason for term in ["bank", "gateway_timeout", "downtime"]):
             plan = RecoveryPlan(
                 root_cause_category=RootCauseCategory.TECHNICAL_GATEWAY_ERROR,
                 confidence_score=0.90,
