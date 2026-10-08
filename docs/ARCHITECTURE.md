@@ -125,7 +125,7 @@ Project Phoenix is designed as a modular, asynchronous, policy-governed revenue 
 - **Invariants:** Disallows illegal transitions (e.g., cannot transition from `RECOVERED` to `FAILED`).
 
 ### 2.9 Append-Oriented Audit Engine
-- **Function:** Records an immutable ledger entry for every state transition, policy check, LLM request/response, and gateway API call.
+- **Function:** Records an append-oriented ledger entry for every state transition, policy check, LLM request/response, and gateway API call.
 - **Storage:** Appended to PostgreSQL table `audit_logs`.
 
 ---
