@@ -30,6 +30,7 @@ class RawWebhookEvent(Base):
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_processing_error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     payload_redacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payload_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
