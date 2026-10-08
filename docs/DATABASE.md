@@ -207,7 +207,7 @@ CREATE INDEX idx_recovery_actions_plink_id ON recovery_actions(payment_link_id);
 CREATE INDEX idx_recovery_actions_ref_id ON recovery_actions(reference_id);
 CREATE INDEX idx_recovery_actions_status ON recovery_actions(status);
 
--- Table 6: Immutable Audit Logs
+-- Table 6: Append-Oriented Audit Logs
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     case_id UUID REFERENCES recovery_cases(id) ON DELETE SET NULL,
