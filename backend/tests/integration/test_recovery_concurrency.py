@@ -95,7 +95,8 @@ async def test_concurrent_execution_creates_only_one_payment_link(
                 executor1.execute_recovery(case_id, plan),
                 executor2.execute_recovery(case_id, plan),
             )
-            assert sorted([result1.success, result2.success]) == [False, True]
+            assert result1.success is True
+            assert result2.success is True
         finally:
             await client1.close()
             await client2.close()
