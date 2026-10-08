@@ -25,7 +25,6 @@ def _audit_integrity_hash(audit: AuditLog) -> str:
         "to_state": audit.to_state,
         "trigger": audit.trigger,
         "actor": audit.actor,
-        "context_metadata": audit.context_metadata,
     }
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
