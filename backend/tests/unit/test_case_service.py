@@ -121,3 +121,47 @@ async def test_captured_payment_skips_case_creation(
     repo = RecoveryCaseRepository(db_session)
     case = await repo.get_by_payment_id(payment_id)
     assert case is None
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_reconciliation_failure_does_not_create_recovery_case(
+    case_service: RecoveryCaseService,
+    db_session: AsyncSession,
+):
+    """Gateway reconciliation outages must not be converted into payment failures."""
+    from app.services.recovery.case_service import ReconciliationUnavailableError
+
+    payment_id = "pay_TEST_RECON_OUTAGE"
+    respx.get(f"https://api.razorpay.com/v1/payments/{payment_id}").mock(
+        side_effect=httpx.TimeoutException("gateway timeout")
+    )
+
+    with pytest.raises(ReconciliationUnavailableError):
+        await case_service.handle_payment_failed(_normalized_event(payment_id))
+
+    repo = RecoveryCaseRepository(db_session)
+    assert await repo.get_by_payment_id(payment_id) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_case_uses_authoritative_reconciled_amount(
+    case_service: RecoveryCaseService,
+    db_session: AsyncSession,
+):
+    """RecoveryCase financial fields come from Razorpay reconciliation."""
+    payment_id = "pay_TEST_AUTHORITATIVE"
+    response = razorpay_payment_api_response(payment_id=payment_id, status="failed")
+    response["amount"] = 599900
+    response["currency"] = "INR"
+    respx.get(f"https://api.razorpay.com/v1/payments/{payment_id}").mock(
+        return_value=httpx.Response(200, json=response)
+    )
+
+    await case_service.handle_payment_failed(_normalized_event(payment_id))
+
+    repo = RecoveryCaseRepository(db_session)
+    case = await repo.get_by_payment_id(payment_id)
+    assert case is not None
+    assert case.amount == 599900
+    assert case.currency == "INR"
