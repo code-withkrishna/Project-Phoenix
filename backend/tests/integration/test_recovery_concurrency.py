@@ -76,8 +76,7 @@ async def test_concurrent_execution_creates_only_one_payment_link(
         },
     )
 
-    try:
-        # Use independent sessions so the test exercises real database concurrency.
+    # Use independent sessions so the test exercises real database concurrency.
         session_factory = async_sessionmaker(
             bind=db_session.bind,
             class_=AsyncSession,
