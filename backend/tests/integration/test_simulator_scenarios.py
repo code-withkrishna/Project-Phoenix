@@ -43,8 +43,8 @@ async def test_all_six_simulation_scenarios_end_to_end(client, db_session) -> No
                 "scenario": scenario_name,
                 "amount_inr": amount_inr,
                 "customer_name": "Test Merchant Customer",
-                "customer_email": "merchant.test@example.com",
-                "customer_phone": "+919876543210",
+                "customer_email": f"merchant.test+{scenario_name}@example.com",
+                "customer_phone": f"+91987654{str(scenarios.index((scenario_name, amount_inr, expected_status)) + 100).zfill(3)}",
             },
         )
 

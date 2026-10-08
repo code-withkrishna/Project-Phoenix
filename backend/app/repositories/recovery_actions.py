@@ -5,10 +5,11 @@ from datetime import datetime, timezone
 from typing import Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recovery_action import RecoveryAction
+from app.models.recovery_case import RecoveryCase
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,34 @@ class RecoveryActionRepository:
             .where(RecoveryAction.case_id == case_id)
             .order_by(RecoveryAction.created_at.asc())
         )
+        return result.scalars().all()
+
+    async def list_by_customer(
+        self,
+        *,
+        customer_email: str | None,
+        customer_phone: str | None,
+        exclude_case_id: UUID | None = None,
+    ) -> Sequence[RecoveryAction]:
+        """List recovery actions belonging to the same customer across cases."""
+        identity_filters = []
+        if customer_email:
+            identity_filters.append(RecoveryCase.customer_email == customer_email)
+        if customer_phone:
+            identity_filters.append(RecoveryCase.customer_phone == customer_phone)
+        if not identity_filters:
+            return []
+
+        query = (
+            select(RecoveryAction)
+            .join(RecoveryCase, RecoveryCase.id == RecoveryAction.case_id)
+            .where(or_(*identity_filters))
+            .order_by(RecoveryAction.created_at.asc())
+        )
+        if exclude_case_id is not None:
+            query = query.where(RecoveryAction.case_id != exclude_case_id)
+
+        result = await self._session.execute(query)
         return result.scalars().all()
 
     async def get_active_action_for_case(self, case_id: UUID) -> RecoveryAction | None:

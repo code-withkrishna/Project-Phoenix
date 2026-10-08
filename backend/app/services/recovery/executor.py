@@ -69,8 +69,13 @@ class RecoveryExecutor:
         if case is None:
             raise ValueError(f"RecoveryCase with id {case_id} not found")
 
-        # Fetch prior actions for this case
+        # Fetch case-local actions for retry limits and customer-wide actions for cooldown.
         prior_actions = await self._action_repo.list_by_case_id(case.id)
+        customer_actions = await self._action_repo.list_by_customer(
+            customer_email=case.customer_email,
+            customer_phone=case.customer_phone,
+            exclude_case_id=case.id,
+        )
         attempt_number = len(prior_actions) + 1
 
         # 2. Evaluate Policy Engine
@@ -79,6 +84,7 @@ class RecoveryExecutor:
             plan=plan,
             policy=effective_policy,
             prior_actions=prior_actions,
+            customer_actions=customer_actions,
             current_time=now,
         )
 

@@ -83,10 +83,17 @@ class ExecutionGuard:
 
         # 7. Action is permitted
         plan_action = plan.recommended_action.value if hasattr(plan.recommended_action, "value") else str(plan.recommended_action)
-        if plan_action not in PERMITTED_ACTIONS and decision.action not in PERMITTED_ACTIONS:
+        canonical_plan_action = (
+            "CREATE_PAYMENT_LINK" if plan_action == "DISPATCH_PAYMENT_LINK" else plan_action
+        )
+        if (
+            canonical_plan_action not in PERMITTED_ACTIONS
+            or decision.action not in PERMITTED_ACTIONS
+            or canonical_plan_action != decision.action
+        ):
             return ExecutionGuardResult(
                 False,
-                f"Action '{plan_action}' is not permitted for financial execution",
+                f"Plan action '{plan_action}' and policy action '{decision.action}' do not agree on a permitted financial action",
                 7,
             )
 
