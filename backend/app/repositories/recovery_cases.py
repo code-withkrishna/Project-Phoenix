@@ -147,6 +147,7 @@ class RecoveryCaseRepository:
         await self._session.flush()
 
         audit = AuditLog(
+            id=uuid.uuid4(),
             case_id=case.id,
             from_state=from_state or previous_status,
             to_state=new_status,
@@ -154,9 +155,9 @@ class RecoveryCaseRepository:
             actor=actor,
             context_metadata=context_metadata or {},
         )
+        audit.integrity_hash = _audit_integrity_hash(audit)
         self._session.add(audit)
         await self._session.flush()
-        audit.integrity_hash = _audit_integrity_hash(audit)
         await self._session.commit()
         await self._session.refresh(case)
         return case
@@ -173,6 +174,7 @@ class RecoveryCaseRepository:
     ) -> AuditLog:
         """Append an audit log entry without changing case status."""
         audit = AuditLog(
+            id=uuid.uuid4(),
             case_id=case_id,
             from_state=from_state,
             to_state=to_state,
@@ -180,9 +182,9 @@ class RecoveryCaseRepository:
             actor=actor,
             context_metadata=context_metadata or {},
         )
+        audit.integrity_hash = _audit_integrity_hash(audit)
         self._session.add(audit)
         await self._session.flush()
-        audit.integrity_hash = _audit_integrity_hash(audit)
         await self._session.commit()
         await self._session.refresh(audit)
         return audit
