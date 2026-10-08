@@ -236,13 +236,16 @@ async def test_end_to_end_creates_recovery_case(client, db_session, settings):
 
 
 @pytest.mark.asyncio
-@respx.mock
 async def test_duplicate_webhook_flood(client, db_session):
-    """Concurrent duplicate deliveries create exactly one stored event."""
-    respx.get("https://api.razorpay.com/v1/payments/pay_TEST_FIXTURE_001").mock(
-        return_value=httpx.Response(200, json=razorpay_payment_api_response(status="failed"))
-    )
-    raw_body = payment_failed_raw_body()
+    """Concurrent duplicate ingestion stores exactly one event.
+
+    This test intentionally uses an unsupported event type so it isolates the
+    ingestion idempotency guarantee from the separate background-processing
+    pipeline. A payment.failed event is covered by the end-to-end test above.
+    """
+    payload = order_paid_payload(event_id="event_integ_flood")
+    payload.pop("_test_fixture_event_id", None)
+    raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     headers = webhook_headers(raw_body, event_id="event_integ_flood")
 
     tasks = [
