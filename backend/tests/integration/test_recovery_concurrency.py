@@ -76,10 +76,7 @@ async def test_concurrent_execution_creates_only_one_payment_link(
         },
     )
 
-    client = RazorpayClient(settings)
     try:
-        executor = RecoveryExecutor(db_session, client)
-
         # Use independent sessions so the test exercises real database concurrency.
         session_factory = async_sessionmaker(
             bind=db_session.bind,
@@ -89,7 +86,6 @@ async def test_concurrent_execution_creates_only_one_payment_link(
         session1 = session_factory()
         session2 = session_factory()
 
-        executor1 = RecoveryExecutor(case_id, plan) if False else None
         client1 = RazorpayClient(settings)
         client2 = RazorpayClient(settings)
         try:
@@ -114,5 +110,3 @@ async def test_concurrent_execution_creates_only_one_payment_link(
 
         # Verify Razorpay API was called only once
         assert mock_route.call_count == 1
-    finally:
-        await client.close()
