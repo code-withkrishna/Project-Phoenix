@@ -285,3 +285,26 @@ def test_guard_check_14_attempt_limit_exceeded(
     )
     assert result.allowed is False
     assert result.check_failed == 14
+
+def test_guard_rejects_plan_policy_action_mismatch(
+    execution_guard: ExecutionGuard,
+    valid_case: RecoveryCase,
+    valid_plan: RecoveryPlan,
+    default_policy: MerchantPolicy,
+) -> None:
+    decision = PolicyDecision(
+        decision=DecisionType.ALLOW,
+        action="DISPATCH_PAYMENT_LINK",
+        reason_codes=[],
+    )
+    result = execution_guard.verify(
+        case=valid_case,
+        plan=valid_plan,
+        decision=decision,
+        policy=default_policy,
+        prior_actions=[],
+        reference_id="PHX_7F4A21C9_01",
+        attempt_number=1,
+    )
+    assert result.allowed is False
+    assert result.check_failed == 7
