@@ -13,6 +13,19 @@ from app.models.recovery_action import RecoveryAction
 logger = logging.getLogger(__name__)
 
 
+ACTION_STATE_TRANSITIONS = {
+    "PENDING": frozenset({"ISSUED", "FAILED", "CANCELLED", "EXPIRED"}),
+    "ISSUED": frozenset({"PAID", "FAILED", "CANCELLED", "EXPIRED"}),
+    "PAID": frozenset(),
+    "FAILED": frozenset(),
+    "CANCELLED": frozenset(),
+    "EXPIRED": frozenset(),
+}
+
+class InvalidRecoveryActionTransition(ValueError):
+    """Raised when a RecoveryAction transition is not allowed."""
+
+
 class RecoveryActionRepository:
     """Repository for managing RecoveryAction entities."""
 
@@ -102,6 +115,13 @@ class RecoveryActionRepository:
         executed_at: datetime | None = None,
     ) -> RecoveryAction:
         """Update status and attributes of a RecoveryAction."""
+        previous_status = action.status
+        if previous_status != new_status:
+            allowed_states = ACTION_STATE_TRANSITIONS.get(previous_status)
+            if allowed_states is None or new_status not in allowed_states:
+                raise InvalidRecoveryActionTransition(
+                    f"Invalid RecoveryAction transition: {previous_status} -> {new_status}"
+                )
         action.status = new_status
         if payment_link_id is not None:
             action.payment_link_id = payment_link_id
