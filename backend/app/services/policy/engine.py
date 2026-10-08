@@ -327,7 +327,13 @@ class PolicyEngine:
 
             # POL-005: Customer Cooldown
             actions = list(prior_actions or [])
-            cooldown_actions = list(customer_actions) if customer_actions is not None else actions
+            # Cooldown is customer-wide, but the current case's actions must
+            # remain part of the evaluation. Merge both sources and de-duplicate
+            # by action id so callers cannot accidentally replace case-local history.
+            cooldown_by_id = {str(action.id): action for action in actions}
+            for action in customer_actions or ():
+                cooldown_by_id.setdefault(str(action.id), action)
+            cooldown_actions = list(cooldown_by_id.values())
             if cooldown_actions:
                 # Find the most recent recovery action for this customer.
                 latest_action = max(cooldown_actions, key=lambda a: a.created_at)
