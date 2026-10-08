@@ -80,13 +80,31 @@ async def test_concurrent_execution_creates_only_one_payment_link(
     try:
         executor = RecoveryExecutor(db_session, client)
 
-        # Execute recovery for the first time
-        result1 = await executor.execute_recovery(case_id, plan)
-        assert result1.success is True
+        # Use independent sessions so the test exercises real database concurrency.
+        session_factory = async_sessionmaker(
+            bind=db_session.bind,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+        session1 = session_factory()
+        session2 = session_factory()
 
-        # Second attempt immediately after should be blocked by ExecutionGuard / Policy
-        result2 = await executor.execute_recovery(case_id, plan)
-        assert result2.success is False
+        executor1 = RecoveryExecutor(case_id, plan) if False else None
+        client1 = RazorpayClient(settings)
+        client2 = RazorpayClient(settings)
+        try:
+            executor1 = RecoveryExecutor(session1, client1)
+            executor2 = RecoveryExecutor(session2, client2)
+            result1, result2 = await asyncio.gather(
+                executor1.execute_recovery(case_id, plan),
+                executor2.execute_recovery(case_id, plan),
+            )
+            assert sorted([result1.success, result2.success]) == [False, True]
+        finally:
+            await client1.close()
+            await client2.close()
+            await session1.close()
+            await session2.close()
 
         # Verify only ONE RecoveryAction was persisted in database
         action_repo = RecoveryActionRepository(db_session)
