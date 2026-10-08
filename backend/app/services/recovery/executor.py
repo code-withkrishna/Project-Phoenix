@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 import logging
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recovery_action import RecoveryAction
@@ -201,16 +202,32 @@ class RecoveryExecutor:
         # 6. Create initial PENDING RecoveryAction record
         expiry_minutes = plan.link_expiry_minutes or 30
         expires_at = now + timedelta(minutes=expiry_minutes)
-        action = await self._action_repo.create(
-            case_id=case.id,
-            reference_id=reference_id,
-            amount=case.amount,
-            currency=case.currency,
-            expires_at=expires_at,
-            action_type="CREATE_PAYMENT_LINK",
-            attempt_number=attempt_number,
-            status="PENDING",
-        )
+        try:
+            action = await self._action_repo.create(
+                case_id=case.id,
+                reference_id=reference_id,
+                amount=case.amount,
+                currency=case.currency,
+                expires_at=expires_at,
+                action_type="CREATE_PAYMENT_LINK",
+                attempt_number=attempt_number,
+                status="PENDING",
+            )
+        except IntegrityError:
+            # The database-level active-action invariant won a race with another
+            # executor. Roll back only this reservation transaction, then return
+            # the already-active action instead of calling Razorpay twice.
+            await self._session.rollback()
+            existing_action = await self._action_repo.get_active_action_for_case(case.id)
+            latest_case = await self._case_repo.get_by_id(case.id)
+            if existing_action is not None and latest_case is not None:
+                return ExecutionResult(
+                    success=True,
+                    case=latest_case,
+                    action=existing_action,
+                    decision=decision,
+                )
+            raise
 
         await self._case_repo.append_audit(
             case_id=case.id,
