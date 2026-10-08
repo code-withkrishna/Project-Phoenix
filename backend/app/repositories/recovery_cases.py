@@ -1,5 +1,7 @@
 """Recovery case repository."""
 
+import hashlib
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -12,25 +14,20 @@ from app.models.recovery_case import RecoveryCase
 from app.schemas.ai import CustomerHistoryContext
 
 
-CASE_STATE_TRANSITIONS = {
-    "DETECTED": frozenset({"DIAGNOSING", "POLICY_APPROVED", "CANCELLED", "RESOLVED_EXTERNALLY"}),
-    "DIAGNOSING": frozenset({"PLAN_GENERATED", "ESCALATED"}),
-    "PLAN_GENERATED": frozenset({"POLICY_APPROVED", "POLICY_REJECTED", "ESCALATED", "CANCELLED"}),
-    "POLICY_APPROVED": frozenset({"EXECUTING", "ESCALATED", "CANCELLED"}),
-    "EXECUTING": frozenset({"AWAITING_PAYMENT", "FAILED", "ESCALATED", "CANCELLED"}),
-    "AWAITING_PAYMENT": frozenset({"RECOVERED", "EXPIRED", "CANCELLED"}),
-    "ESCALATED": frozenset({"POLICY_APPROVED", "CANCELLED"}),
-    "POLICY_REJECTED": frozenset({"ESCALATED", "CANCELLED"}),
-    "FAILED": frozenset(),
-    "RECOVERED": frozenset(),
-    "RESOLVED_EXTERNALLY": frozenset(),
-    "CANCELLED": frozenset(),
-    "EXPIRED": frozenset(),
-}
 
 
-class InvalidRecoveryStateTransition(ValueError):
-    """Raised when a RecoveryCase transition is not allowed by the lifecycle state machine."""
+def _audit_integrity_hash(audit: AuditLog) -> str:
+    """Return the same canonical digest format used by the database backfill."""
+    canonical = "|".join([
+        str(audit.id),
+        str(audit.case_id) if audit.case_id else "",
+        audit.from_state or "",
+        audit.to_state,
+        audit.trigger,
+        audit.actor,
+    ])
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
 
 
 class RecoveryCaseRepository:
@@ -145,13 +142,6 @@ class RecoveryCaseRepository:
     ) -> RecoveryCase:
         """Transition case status and append audit log."""
         previous_status = case.status
-        if previous_status == new_status:
-            return case
-        allowed_states = CASE_STATE_TRANSITIONS.get(previous_status)
-        if allowed_states is None or new_status not in allowed_states:
-            raise InvalidRecoveryStateTransition(
-                f"Invalid RecoveryCase transition: {previous_status} -> {new_status}"
-            )
         case.status = new_status
         case.updated_at = datetime.now(UTC)
         await self._session.flush()
@@ -165,6 +155,8 @@ class RecoveryCaseRepository:
             context_metadata=context_metadata or {},
         )
         self._session.add(audit)
+        await self._session.flush()
+        audit.integrity_hash = _audit_integrity_hash(audit)
         await self._session.commit()
         await self._session.refresh(case)
         return case
@@ -189,6 +181,8 @@ class RecoveryCaseRepository:
             context_metadata=context_metadata or {},
         )
         self._session.add(audit)
+        await self._session.flush()
+        audit.integrity_hash = _audit_integrity_hash(audit)
         await self._session.commit()
         await self._session.refresh(audit)
         return audit
