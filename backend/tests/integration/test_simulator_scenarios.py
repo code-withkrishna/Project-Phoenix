@@ -112,3 +112,18 @@ async def test_simulator_does_not_expose_internal_exception(
     )
     assert response.status_code == 500
     assert "SECRET_INTERNAL_DATABASE_DETAILS" not in response.text
+
+
+def test_simulator_amount_inr_is_converted_to_paise_without_float_rounding():
+    from app.api.v1.checkout import SimulateFailureRequest
+
+    req = SimulateFailureRequest(amount_inr=2999)
+    assert req.amount_paise == 299900
+
+
+def test_simulator_rejects_conflicting_amount_fields():
+    from pydantic import ValidationError
+    from app.api.v1.checkout import SimulateFailureRequest
+
+    with pytest.raises(ValidationError):
+        SimulateFailureRequest(amount_paise=299900, amount_inr=2999)
