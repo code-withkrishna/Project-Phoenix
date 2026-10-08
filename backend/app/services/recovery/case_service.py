@@ -13,6 +13,11 @@ from app.services.recovery.orchestrator import OrchestrationResult, RecoveryOrch
 logger = logging.getLogger(__name__)
 
 
+class ReconciliationUnavailableError(RuntimeError):
+    """Raised when authoritative Razorpay reconciliation cannot be completed."""
+
+
+
 class RecoveryCaseService:
     """Create and manage recovery cases and handle lifecycle events."""
 
@@ -42,19 +47,22 @@ class RecoveryCaseService:
             reconciliation = await self._reconciliation.reconcile_payment(event.payment_id)
         except RazorpayAPIError as exc:
             logger.warning(
-                "Payment reconciliation lookup failed for %s (code=%s): %s. Falling back to uncaptured/failed.",
+                "Payment reconciliation lookup failed for %s (code=%s): %s. Event remains retryable.",
                 event.payment_id,
                 exc.status_code,
                 exc.message,
             )
-            reconciliation = self._reconciliation.classify_without_api("failed")
+            raise ReconciliationUnavailableError(
+                f"Unable to reconcile payment {event.payment_id} against Razorpay truth"
+            ) from exc
         except Exception as exc:
-            logger.warning(
-                "Unexpected error reconciling payment %s: %s. Falling back to uncaptured/failed.",
+            logger.exception(
+                "Unexpected error reconciling payment %s. Event remains retryable.",
                 event.payment_id,
-                exc,
             )
-            reconciliation = self._reconciliation.classify_without_api("failed")
+            raise ReconciliationUnavailableError(
+                f"Unexpected reconciliation failure for payment {event.payment_id}"
+            ) from exc
 
         if reconciliation.is_resolved:
             existing = await self._repo.get_by_payment_id(event.payment_id)
@@ -97,11 +105,21 @@ class RecoveryCaseService:
             )
             return
 
+        authoritative_amount = int(reconciliation.payment_data.get("amount", 0) or 0)
+        authoritative_currency = str(
+            reconciliation.payment_data.get("currency", event.currency) or ""
+        ).upper()
+        authoritative_order_id = reconciliation.payment_data.get("order_id") or event.order_id
+        if authoritative_amount <= 0 or not authoritative_currency:
+            raise ReconciliationUnavailableError(
+                f"Razorpay returned incomplete payment data for {event.payment_id}"
+            )
+
         case, created = await self._repo.create_if_absent(
             payment_id=event.payment_id,
-            order_id=event.order_id,
-            amount=event.amount,
-            currency=event.currency,
+            order_id=authoritative_order_id,
+            amount=authoritative_amount,
+            currency=authoritative_currency,
             customer_email=event.customer_email,
             customer_phone=event.customer_phone,
             failure_code=event.failure_code,
@@ -191,11 +209,59 @@ class RecoveryCaseService:
             logger.error("RecoveryCase not found for action %s", action.id)
             return
 
-        # 3. Protected Terminal State check: if already RECOVERED, ignore
+        # 3. Only AWAITING_PAYMENT + ISSUED is a valid source state for a
+        # successful payment-link webhook. This prevents late webhooks from
+        # resurrecting cancelled/expired cases.
         if case.is_recovered or case.status == "RECOVERED":
             logger.info(
                 "Case %s is already in protected RECOVERED state, ignoring duplicate payment_link.paid",
                 case.id,
+            )
+            return
+        if case.status != "AWAITING_PAYMENT" or action.status != "ISSUED":
+            logger.warning(
+                "Ignoring payment_link.paid for case %s: case_status=%s action_status=%s",
+                case.id,
+                case.status,
+                action.status,
+            )
+            await self._repo.append_audit(
+                case_id=case.id,
+                from_state=case.status,
+                to_state=case.status,
+                trigger="PAYMENT_LINK_PAID_OUT_OF_STATE",
+                actor="SYSTEM_WEBHOOK_GATEWAY",
+                context_metadata={
+                    "action_id": str(action.id),
+                    "case_status": case.status,
+                    "action_status": action.status,
+                    "payment_link_id": event.payment_link_id,
+                    "reference_id": event.reference_id,
+                },
+            )
+            return
+
+        if (
+            event.reference_id
+            and event.reference_id != action.reference_id
+        ) or (
+            event.payment_link_id
+            and event.payment_link_id != action.payment_link_id
+        ):
+            logger.error("Payment-link correlation mismatch for action %s", action.id)
+            await self._repo.append_audit(
+                case_id=case.id,
+                from_state=case.status,
+                to_state=case.status,
+                trigger="PAYMENT_LINK_CORRELATION_MISMATCH",
+                actor="SYSTEM_WEBHOOK_GATEWAY",
+                context_metadata={
+                    "action_id": str(action.id),
+                    "event_reference_id": event.reference_id,
+                    "action_reference_id": action.reference_id,
+                    "event_payment_link_id": event.payment_link_id,
+                    "action_payment_link_id": action.payment_link_id,
+                },
             )
             return
 
@@ -204,10 +270,11 @@ class RecoveryCaseService:
             logger.warning("payment_link status is '%s', expected 'paid'", event.payment_link_status)
             return
 
-        if event.amount_paid != action.amount and event.amount != action.amount:
+        if event.amount_paid != action.amount or event.amount != action.amount:
             logger.error(
-                "Amount mismatch in payment_link.paid: received %s, expected %s",
-                event.amount_paid or event.amount,
+                "Amount mismatch in payment_link.paid: amount=%s amount_paid=%s expected=%s",
+                event.amount,
+                event.amount_paid,
                 action.amount,
             )
             await self._repo.append_audit(

@@ -501,3 +501,68 @@ async def test_protected_terminal_state_late_expired_after_recovered(
     assert case.status == "RECOVERED"
     assert case.is_recovered is True
     assert action.status == "PAID"
+
+@pytest.mark.asyncio
+async def test_late_payment_link_paid_cannot_resurrect_cancelled_case(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+) -> None:
+    """A paid webhook arriving after cancellation must not recover the case."""
+    case_repo = RecoveryCaseRepository(db_session)
+    action_repo = RecoveryActionRepository(db_session)
+
+    case, _ = await case_repo.create_if_absent(
+        payment_id="pay_WH_LATE_PAID_001",
+        order_id="order_WH_LATE_PAID_01",
+        amount=499900,
+        currency="INR",
+        customer_email="shopper@example.com",
+        customer_phone="+919876543210",
+        failure_code="BAD_REQUEST_ERROR",
+        failure_reason="payment_cancelled",
+        failure_telemetry={},
+        status="CANCELLED",
+    )
+    assert case is not None
+
+    ref_id = f"PHX_{str(case.id).replace('-', '').upper()[:8]}_01"
+    action = await action_repo.create(
+        case_id=case.id,
+        reference_id=ref_id,
+        payment_link_id="plink_WH_LATE_PAID_001",
+        payment_link_url="https://rzp.io/i/plink_WH_LATE_PAID_001",
+        amount=499900,
+        currency="INR",
+        status="CANCELLED",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    await db_session.commit()
+
+    payload = payment_link_paid_payload(
+        event_id="event_WH_LATE_PAID_001",
+        payment_link_id=action.payment_link_id,
+        reference_id=ref_id,
+        payment_id="pay_CAPTURED_LATE_001",
+        amount=499900,
+        amount_paid=499900,
+        payment_status="captured",
+    )
+    event_id = payload.pop("_test_fixture_event_id")
+    raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    headers = webhook_headers(raw_body, event_id=event_id, secret=settings.razorpay_webhook_secret)
+
+    response = await client.post("/api/v1/webhooks/razorpay", content=raw_body, headers=headers)
+    assert response.status_code == 200
+
+    dispatcher = WebhookDispatcher(db_session, settings)
+    try:
+        await dispatcher.process_event(event_id)
+    finally:
+        await dispatcher.close()
+
+    await db_session.refresh(case)
+    await db_session.refresh(action)
+    assert case.status == "CANCELLED"
+    assert case.is_recovered is False
+    assert action.status == "CANCELLED"
