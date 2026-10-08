@@ -13,6 +13,11 @@ from app.services.recovery.orchestrator import OrchestrationResult, RecoveryOrch
 logger = logging.getLogger(__name__)
 
 
+class ReconciliationUnavailableError(RuntimeError):
+    """Raised when authoritative Razorpay reconciliation cannot be completed."""
+
+
+
 class RecoveryCaseService:
     """Create and manage recovery cases and handle lifecycle events."""
 
