@@ -38,6 +38,8 @@ class ComparisonReport:
     net_value_added_paise: int
     roi_multiple: float
     is_live_data: bool
+    phoenix_data_source: str = "LIVE_PERSISTED_DATABASE"
+    baseline_data_source: str = "SIMULATED_BENCHMARK_MODEL"
 
     def to_dict(self) -> dict:
         """Serialize comparison report to dictionary."""
@@ -84,8 +86,18 @@ class ComparisonReport:
                 "net_value_added_inr": round(self.net_value_added_paise / 100, 2),
                 "roi_multiple": round(self.roi_multiple, 2),
                 "is_live_data": self.is_live_data,
-                "data_source": "LIVE_PERSISTED_DATABASE" if self.is_live_data else "SIMULATED_BENCHMARK_MODEL",
-                "lift_label": "Measured Live Revenue Lift" if self.is_live_data else "Estimated Net Revenue Lift (Simulated Benchmark)",
+                "phoenix_data_source": self.phoenix_data_source,
+                "baseline_data_source": self.baseline_data_source,
+                "data_source": (
+                    "LIVE_PHOENIX_PLUS_SIMULATED_BASELINE"
+                    if self.is_live_data
+                    else "SIMULATED_BENCHMARK_MODEL"
+                ),
+                "lift_label": (
+                    "Live Phoenix vs Simulated Baseline"
+                    if self.is_live_data
+                    else "Estimated Benchmark Model"
+                ),
             },
         }
 
