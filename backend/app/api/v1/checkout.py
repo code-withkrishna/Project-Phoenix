@@ -18,6 +18,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.repositories.recovery_cases import RecoveryCaseRepository
 from app.services.razorpay.client import RazorpayAPIError, RazorpayClient
+from app.services.razorpay.reconciliation import SimulationPaymentReconciliationService
 from app.services.webhooks.dispatcher import WebhookDispatcher
 from app.services.webhooks.ingestion import WebhookIngestionService
 
@@ -217,7 +218,13 @@ async def simulate_failure_event(
             signature=sig,
         )
 
-        dispatcher = WebhookDispatcher(session, settings, razorpay_client=client, auto_orchestrate=True)
+        dispatcher = WebhookDispatcher(
+            session,
+            settings,
+            razorpay_client=client,
+            reconciliation_service=SimulationPaymentReconciliationService(),
+            auto_orchestrate=True,
+        )
         # Pass stored_event.event_id so repository query resolves correctly
         await dispatcher.process_event(stored_event.event_id)
     except Exception as exc:

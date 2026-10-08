@@ -61,3 +61,16 @@ class PaymentReconciliationService:
             is_failed=status in FAILED_STATUSES,
             payment_data={"status": status},
         )
+
+
+class SimulationPaymentReconciliationService:
+    """Deterministic reconciliation adapter for Phoenix's synthetic failure simulator."""
+
+    async def reconcile_payment(self, payment_id: str) -> ReconciliationResult:
+        return ReconciliationResult(
+            payment_id=payment_id,
+            authoritative_status="failed",
+            is_resolved=False,
+            is_failed=True,
+            payment_data={"id": payment_id, "status": "failed"},
+        )
