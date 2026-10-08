@@ -124,6 +124,13 @@ class RecoveryCaseRepository:
     ) -> RecoveryCase:
         """Transition case status and append audit log."""
         previous_status = case.status
+        if previous_status == new_status:
+            return case
+        allowed_states = CASE_STATE_TRANSITIONS.get(previous_status)
+        if allowed_states is None or new_status not in allowed_states:
+            raise InvalidRecoveryStateTransition(
+                f"Invalid RecoveryCase transition: {previous_status} -> {new_status}"
+            )
         case.status = new_status
         case.updated_at = datetime.now(UTC)
         await self._session.flush()
