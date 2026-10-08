@@ -2,11 +2,13 @@
 
 import httpx
 import pytest
+from datetime import datetime, timedelta, timezone
 import respx
 from uuid import uuid4
 
 from app.core.config import Settings
 from app.repositories.recovery_cases import RecoveryCaseRepository
+from app.repositories.recovery_actions import RecoveryActionRepository
 from app.services.webhooks.dispatcher import WebhookDispatcher
 from tests.fixtures.razorpay import (
     payment_failed_raw_body,
@@ -101,6 +103,26 @@ async def test_hitl_manual_rejection_flow(client, db_session, settings):
         event_id="evt_hitl_rej_01",
     )
 
+    case_repo = RecoveryCaseRepository(db_session)
+    action_repo = RecoveryActionRepository(db_session)
+    case = await case_repo.get_by_payment_id("pay_hitl_rej_01")
+    assert case is not None
+    action = await action_repo.create(
+        case_id=case.id,
+        reference_id=f"PHX_{case_id[:8]}_1",
+        payment_link_id="plink_hitl_reject_01",
+        payment_link_url="https://rzp.io/i/plink_hitl_reject_01",
+        amount=499900,
+        currency="INR",
+        status="ISSUED",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    await db_session.commit()
+
+    cancel_route = respx.post(
+        "https://api.razorpay.com/v1/payment_links/plink_hitl_reject_01/cancel"
+    ).respond(status_code=200, json={"id": "plink_hitl_reject_01", "status": "cancelled"})
+
     resp = await client.post(
         f"/api/v1/recovery-cases/{case_id}/reject",
         json={"reason": "Suspicious activity detected by merchant security"},
@@ -108,3 +130,52 @@ async def test_hitl_manual_rejection_flow(client, db_session, settings):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "CANCELLED"
+    assert cancel_route.called is True
+    await db_session.refresh(action)
+    assert action.status == "CANCELLED"
+
+    
+@pytest.mark.asyncio
+@respx.mock
+async def test_hitl_rejection_keeps_case_open_when_link_cancellation_fails(client, db_session, settings):
+    """A failed Razorpay cancellation must not leave Phoenix in CANCELLED state."""
+    case_id = await _seed_test_case(
+        client,
+        db_session,
+        settings,
+        payment_id="pay_hitl_rej_fail_01",
+        event_id="evt_hitl_rej_fail_01",
+    )
+
+    case_repo = RecoveryCaseRepository(db_session)
+    action_repo = RecoveryActionRepository(db_session)
+    case = await case_repo.get_by_payment_id("pay_hitl_rej_fail_01")
+    assert case is not None
+    action = await action_repo.create(
+        case_id=case.id,
+        reference_id=f"PHX_{case_id[:8]}_1",
+        payment_link_id="plink_hitl_reject_fail_01",
+        payment_link_url="https://rzp.io/i/plink_hitl_reject_fail_01",
+        amount=499900,
+        currency="INR",
+        status="ISSUED",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    await db_session.commit()
+
+    respx.post(
+        "https://api.razorpay.com/v1/payment_links/plink_hitl_reject_fail_01/cancel"
+    ).respond(status_code=500, json={"error": {"description": "gateway unavailable"}})
+
+    resp = await client.post(
+        f"/api/v1/recovery-cases/{case_id}/reject",
+        json={"reason": "Cancellation failure regression"},
+    )
+    assert resp.status_code == 502
+    data = resp.json()
+    assert data["error"]["code"] == "HTTP_502"
+
+    await db_session.refresh(case)
+    await db_session.refresh(action)
+    assert case.status != "CANCELLED"
+    assert action.status == "ISSUED"
