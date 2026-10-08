@@ -56,7 +56,7 @@ Immutable Audit Record Persisted
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui | Merchant recovery dashboard, case management, HITL overrides, analytics |
+| **Demo UI** | Embedded HTML/JavaScript merchant command center served by FastAPI | Test/demo dashboard, case inspection, HITL controls, analytics |
 | **Backend** | Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy 2.0 | Async webhook gateway, state machine, policy engine, Razorpay client |
 | **Database** | PostgreSQL 15+ | Raw event storage, case state tracking, audit logs, merchant policies |
 | **AI Layer** | Provider-agnostic LLM interface (OpenAI / Anthropic / Gemini) | Failure categorization, recovery strategy proposal via JSON Schema |
