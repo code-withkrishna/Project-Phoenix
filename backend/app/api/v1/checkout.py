@@ -43,7 +43,12 @@ class CreateOrderResponse(BaseModel):
 
 class SimulateFailureRequest(BaseModel):
     scenario: str = Field(default="otp_friction", description="Simulation scenario preset")
-    amount_inr: float = Field(default=2999.0, description="Amount in INR")
+    amount_paise: int = Field(
+        default=299900,
+        ge=100,
+        le=10_000_000_00,
+        description="Amount in paise (₹1 to ₹1 crore)",
+    )
     customer_name: str = Field(default="Aditya Sharma")
     customer_email: str = Field(default="aditya.sharma@example.com")
     customer_phone: str = Field(default="+919876543210")
@@ -95,7 +100,7 @@ async def simulate_failure_event(
     """1-Click failure simulator for rapid evaluation and demonstration."""
     payment_id = f"pay_phx_{uuid.uuid4().hex[:12]}"
     order_id = f"order_phx_{uuid.uuid4().hex[:10]}"
-    amount_paise = int(req.amount_inr * 100)
+    amount_paise = req.amount_paise
 
     # Scenarios mapping
     scenario_configs = {
@@ -190,13 +195,10 @@ async def simulate_failure_event(
         await dispatcher.process_event(stored_event.event_id)
     except Exception as exc:
         logger.exception("Simulation execution encountered error for scenario '%s': %s", req.scenario, exc)
-        return {
-            "success": False,
-            "error": {
-                "code": "RECOVERY_SIMULATION_FAILED",
-                "message": f"Unable to process the failure scenario: {str(exc)}",
-            },
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to process the requested failure simulation.",
+        ) from exc
     finally:
         await client.close()
 
