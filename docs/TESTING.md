@@ -34,7 +34,7 @@ This document outlines the testing architecture, test suites, edge case scenario
 | Test File | Focus Area | Key Scenarios |
 | :--- | :--- | :--- |
 | `test_signature.py` | HMAC-SHA256 Verification | Valid signature, invalid signature, tampered body, missing header, empty secret. |
-| `test_state_machine.py` | State Transitions | Valid legal transitions, illegal transition rejection, terminal state immutability. |
+| `test_recovery_executor.py` / lifecycle transition coverage | State Transitions | Valid legal transitions, illegal transition rejection, terminal state immutability. |
 | `test_policy_engine.py` | Guardrail Rules | Max retry breach, cooldown window violation, expiry bounds check, amount limits, fail-closed exception test. |
 | `test_ai_schemas.py` | Pydantic Schema Validation | Valid structured output, extra fields rejection, missing required fields, enum violation, boundary clamping. |
 
@@ -63,7 +63,7 @@ Runs exclusively against real Razorpay Test Mode using configured `rzp_test_*` c
 6. **Step 6:** Razorpay client calls `POST /v1/payment_links` with `reference_id` (`PHX_<short_case_id>_<sequence>`).
 7. **Step 7:** Customer opens the real `short_url` (Razorpay hosted page) and completes test payment.
 8. **Step 8:** Razorpay servers deliver genuine `payment_link.paid` webhook.
-9. **Step 9:** Phoenix transitions case to `RECOVERED` and writes the immutable audit ledger.
+9. **Step 9:** Phoenix transitions case to `RECOVERED` and writes the append-oriented audit ledger.
 
 ---
 

@@ -55,7 +55,7 @@ Project Phoenix is designed as a modular, asynchronous, policy-governed revenue 
 │              ▼                                                                                     │
 │  ┌─────────────────────────┐                           ┌─────────────────────────┐                 │
 │  │ 8. State Machine &      │                           │ 9. Audit Trail & Log    │                 │
-│  │    Case Lifecycle Mgr   ├──────────────────────────►│    Store (Immutable)    │                 │
+│  │    Case Lifecycle Mgr   ├──────────────────────────►│    Store (Append-Oriented)    │                 │
 │  └─────────────────────────┘                           └─────────────────────────┘                 │
 │                                                                                                    │
 └──────────────────────────────────────────┬─────────────────────────────────────────────────────────┘
@@ -64,7 +64,7 @@ Project Phoenix is designed as a modular, asynchronous, policy-governed revenue 
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHOENIX FRONTEND (Next.js / TypeScript / shadcn/ui)                                               │
+│ EMBEDDED DEMO UI (FastAPI-served HTML/JavaScript)                                               │
 │                                                                                                    │
 │  ┌───────────────────────────────┐  ┌───────────────────────────────┐  ┌─────────────────────────┐ │
 │  │ Recovery Pipeline Dashboard   │  │ Case Details & Reasoner View  │  │ HITL Action / Overrides │ │
@@ -124,8 +124,8 @@ Project Phoenix is designed as a modular, asynchronous, policy-governed revenue 
 - **States:** `DETECTED` $\to$ `DIAGNOSING` $\to$ `PLAN_GENERATED` $\to$ `POLICY_APPROVED` $\to$ `EXECUTING` $\to$ `AWAITING_PAYMENT` $\to$ `RECOVERED` (or terminal failure states: `EXPIRED`, `CANCELLED`, `POLICY_REJECTED`, `FAILED`).
 - **Invariants:** Disallows illegal transitions (e.g., cannot transition from `RECOVERED` to `FAILED`).
 
-### 2.9 Immutable Audit Engine
-- **Function:** Records an immutable ledger entry for every state transition, policy check, LLM request/response, and gateway API call.
+### 2.9 Append-Oriented Audit Engine
+- **Function:** Records an append-oriented ledger entry for every state transition, policy check, LLM request/response, and gateway API call.
 - **Storage:** Appended to PostgreSQL table `audit_logs`.
 
 ---
