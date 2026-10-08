@@ -1,5 +1,6 @@
 """Unit tests for recovery case service."""
 
+import hashlib
 import httpx
 import pytest
 import respx
@@ -97,8 +98,18 @@ async def test_case_created_with_detected_state(case_service: RecoveryCaseServic
 
     audit_trail = await repo.get_audit_trail(case.id)
     assert len(audit_trail) == 1
-    assert audit_trail[0].to_state == "DETECTED"
-    assert audit_trail[0].trigger == "WEBHOOK_PAYMENT_FAILED"
+    audit = audit_trail[0]
+    assert audit.to_state == "DETECTED"
+    assert audit.trigger == "WEBHOOK_PAYMENT_FAILED"
+    canonical = "|".join([
+        str(audit.id),
+        str(audit.case_id),
+        "",
+        audit.to_state,
+        audit.trigger,
+        audit.actor,
+    ])
+    assert audit.integrity_hash == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 @pytest.mark.asyncio
