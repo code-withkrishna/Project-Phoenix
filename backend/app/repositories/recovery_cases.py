@@ -17,18 +17,17 @@ from app.schemas.ai import CustomerHistoryContext
 
 
 def _audit_integrity_hash(audit: AuditLog) -> str:
-    """Return a deterministic digest of immutable audit fields."""
-    payload = {
-        "id": str(audit.id),
-        "case_id": str(audit.case_id) if audit.case_id else None,
-        "from_state": audit.from_state,
-        "to_state": audit.to_state,
-        "trigger": audit.trigger,
-        "actor": audit.actor,
-    }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
-    ).hexdigest()
+    """Return the same canonical digest format used by the database backfill."""
+    canonical = "|".join([
+        str(audit.id),
+        str(audit.case_id) if audit.case_id else "",
+        audit.from_state or "",
+        audit.to_state,
+        audit.trigger,
+        audit.actor,
+    ])
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
 
 
 class RecoveryCaseRepository:
