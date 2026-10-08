@@ -104,11 +104,18 @@ async def approve_recovery_case(
             detail=f"Cannot approve case in state '{case.status}'",
         )
 
-    # Log merchant manual approval
-    await repo.append_audit(
-        case_id=case.id,
-        from_state=case.status,
-        to_state="POLICY_APPROVED",
+    if req.action != "CREATE_PAYMENT_LINK":
+        raise HTTPException(
+            status_code=400,
+            detail="Manual approval only supports CREATE_PAYMENT_LINK",
+        )
+
+    # Record the human approval as a real lifecycle transition before execution.
+    # RecoveryExecutor treats POLICY_APPROVED as the hand-off state and will
+    # therefore avoid creating a second synthetic transition.
+    case = await repo.update_status(
+        case,
+        new_status="POLICY_APPROVED",
         trigger="MERCHANT_HITL_APPROVED",
         actor="MERCHANT_OPERATOR",
         context_metadata={"reason": req.reason, "approved_action": req.action},
