@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -30,6 +30,13 @@ class HITLActionRequest(BaseModel):
 
     reason: str = Field(default="Merchant approved via Dashboard HITL interface", max_length=255)
     action: str = Field(default="CREATE_PAYMENT_LINK")
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, value: str) -> str:
+        if value != "CREATE_PAYMENT_LINK":
+            raise ValueError("Only CREATE_PAYMENT_LINK is supported by the HITL approval endpoint")
+        return value
     link_expiry_minutes: int = Field(default=60, ge=15, le=1440)
     customer_note: str | None = Field(default=None, max_length=160)
 
@@ -155,9 +162,11 @@ async def reject_recovery_case(
     case_id: uuid.UUID,
     req: HITLActionRequest = HITLActionRequest(reason="Rejected by merchant operator"),
     session: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ) -> RecoveryCaseDetail:
     """Merchant manual rejection/cancellation of recovery."""
     repo = RecoveryCaseRepository(session)
+    action_repo = RecoveryActionRepository(session)
     case = await repo.get_by_id_for_update(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Recovery case not found")
@@ -168,12 +177,34 @@ async def reject_recovery_case(
             detail=f"Cannot reject case in terminal state '{case.status}'",
         )
 
-    case = await repo.update_status(
-        case,
-        new_status="CANCELLED",
-        trigger="MERCHANT_HITL_REJECTED",
-        actor="MERCHANT_OPERATOR",
-        context_metadata={"reason": req.reason},
-    )
+    active_action = await action_repo.get_active_action_for_case(case.id)
+    client = RazorpayClient(settings)
+    try:
+        if active_action is not None and active_action.payment_link_id:
+            try:
+                await client.cancel_payment_link(active_action.payment_link_id)
+            except Exception as exc:
+                # Do not mark the Phoenix case cancelled while the external
+                # payment link may still be payable.
+                raise HTTPException(
+                    status_code=502,
+                    detail="Unable to cancel the active Razorpay payment link; recovery remains unchanged",
+                ) from exc
+
+            await action_repo.update_status(active_action, "CANCELLED")
+
+        case = await repo.update_status(
+            case,
+            new_status="CANCELLED",
+            trigger="MERCHANT_HITL_REJECTED",
+            actor="MERCHANT_OPERATOR",
+            context_metadata={
+                "reason": req.reason,
+                "cancelled_action_id": str(active_action.id) if active_action else None,
+                "cancelled_payment_link_id": active_action.payment_link_id if active_action else None,
+            },
+        )
+    finally:
+        await client.close()
 
     return await get_recovery_case(case_id, session)
