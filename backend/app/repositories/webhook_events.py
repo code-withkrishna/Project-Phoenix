@@ -1,5 +1,7 @@
 """Webhook event repository."""
 
+import hashlib
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -90,6 +92,15 @@ class WebhookEventRepository:
         event = await self.get_by_event_id(event_id)
         if event is None:
             return
+        event.payload_sha256 = hashlib.sha256(
+            json.dumps(event.payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+        ).hexdigest()
+        event.payload = {
+            "event": event.event_type,
+            "entity_id": event.entity_id,
+            "redacted": True,
+        }
+        event.payload_redacted_at = datetime.now(UTC)
         event.is_processed = True
         event.processing_started_at = None
         event.last_processing_error = None
