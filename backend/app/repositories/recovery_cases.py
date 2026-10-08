@@ -12,6 +12,27 @@ from app.models.recovery_case import RecoveryCase
 from app.schemas.ai import CustomerHistoryContext
 
 
+CASE_STATE_TRANSITIONS = {
+    "DETECTED": frozenset({"DIAGNOSING", "POLICY_APPROVED", "CANCELLED", "RESOLVED_EXTERNALLY"}),
+    "DIAGNOSING": frozenset({"PLAN_GENERATED", "ESCALATED"}),
+    "PLAN_GENERATED": frozenset({"POLICY_APPROVED", "POLICY_REJECTED", "ESCALATED", "CANCELLED"}),
+    "POLICY_APPROVED": frozenset({"EXECUTING", "ESCALATED", "CANCELLED"}),
+    "EXECUTING": frozenset({"AWAITING_PAYMENT", "FAILED", "ESCALATED", "CANCELLED"}),
+    "AWAITING_PAYMENT": frozenset({"RECOVERED", "EXPIRED", "CANCELLED"}),
+    "ESCALATED": frozenset({"POLICY_APPROVED", "CANCELLED"}),
+    "POLICY_REJECTED": frozenset({"ESCALATED", "CANCELLED"}),
+    "FAILED": frozenset(),
+    "RECOVERED": frozenset(),
+    "RESOLVED_EXTERNALLY": frozenset(),
+    "CANCELLED": frozenset(),
+    "EXPIRED": frozenset(),
+}
+
+
+class InvalidRecoveryStateTransition(ValueError):
+    """Raised when a RecoveryCase transition is not allowed by the lifecycle state machine."""
+
+
 class RecoveryCaseRepository:
     """Data access for recovery cases and related audit logs."""
 
@@ -124,6 +145,13 @@ class RecoveryCaseRepository:
     ) -> RecoveryCase:
         """Transition case status and append audit log."""
         previous_status = case.status
+        if previous_status == new_status:
+            return case
+        allowed_states = CASE_STATE_TRANSITIONS.get(previous_status)
+        if allowed_states is None or new_status not in allowed_states:
+            raise InvalidRecoveryStateTransition(
+                f"Invalid RecoveryCase transition: {previous_status} -> {new_status}"
+            )
         case.status = new_status
         case.updated_at = datetime.now(UTC)
         await self._session.flush()

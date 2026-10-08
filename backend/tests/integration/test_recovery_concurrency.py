@@ -76,25 +76,37 @@ async def test_concurrent_execution_creates_only_one_payment_link(
         },
     )
 
-    client = RazorpayClient(settings)
+    # Use independent sessions so the test exercises real database concurrency.
+    session_factory = async_sessionmaker(
+        bind=db_session.bind,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    session1 = session_factory()
+    session2 = session_factory()
+
+    client1 = RazorpayClient(settings)
+    client2 = RazorpayClient(settings)
     try:
-        executor = RecoveryExecutor(db_session, client)
-
-        # Execute recovery for the first time
-        result1 = await executor.execute_recovery(case_id, plan)
+        executor1 = RecoveryExecutor(session1, client1)
+        executor2 = RecoveryExecutor(session2, client2)
+        result1, result2 = await asyncio.gather(
+            executor1.execute_recovery(case_id, plan),
+            executor2.execute_recovery(case_id, plan),
+        )
         assert result1.success is True
-
-        # Second attempt immediately after should be blocked by ExecutionGuard / Policy
-        result2 = await executor.execute_recovery(case_id, plan)
-        assert result2.success is False
-
-        # Verify only ONE RecoveryAction was persisted in database
-        action_repo = RecoveryActionRepository(db_session)
-        actions = await action_repo.list_by_case_id(case_id)
-        assert len(actions) == 1
-        assert actions[0].payment_link_id == "plink_CONC_001"
-
-        # Verify Razorpay API was called only once
-        assert mock_route.call_count == 1
+        assert result2.success is True
     finally:
-        await client.close()
+        await client1.close()
+        await client2.close()
+        await session1.close()
+        await session2.close()
+
+    # Verify only ONE RecoveryAction was persisted in database
+    action_repo = RecoveryActionRepository(db_session)
+    actions = await action_repo.list_by_case_id(case_id)
+    assert len(actions) == 1
+    assert actions[0].payment_link_id == "plink_CONC_001"
+
+    # Verify Razorpay API was called only once
+    assert mock_route.call_count == 1
