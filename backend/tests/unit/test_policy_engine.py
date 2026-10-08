@@ -277,3 +277,44 @@ def test_pol_007_invalid_merchant_policy(
     result_invalid = policy_engine.evaluate(valid_case, valid_plan, policy=invalid_policy)
     assert result_invalid.decision == DecisionType.REJECT
     assert "INVALID_MERCHANT_POLICY" in result_invalid.reason_codes
+
+def test_auto_execution_disabled_escalates_to_human_review(
+    policy_engine: PolicyEngine,
+    valid_case: RecoveryCase,
+    valid_plan: RecoveryPlan,
+    default_policy: MerchantPolicy,
+) -> None:
+    policy = MerchantPolicy(auto_execute_enabled=False)
+    result = policy_engine.evaluate(valid_case, valid_plan, policy)
+    assert result.decision == DecisionType.ESCALATE
+    assert result.action == "HUMAN_REVIEW"
+    assert "AUTO_EXECUTION_DISABLED" in result.reason_codes
+
+
+def test_customer_cooldown_uses_actions_from_other_cases(
+    policy_engine: PolicyEngine,
+    valid_case: RecoveryCase,
+    valid_plan: RecoveryPlan,
+    default_policy: MerchantPolicy,
+) -> None:
+    now = datetime(2026, 8, 21, 12, 0, 0, tzinfo=timezone.utc)
+    other_case_action = RecoveryAction(
+        id=uuid.uuid4(),
+        case_id=uuid.uuid4(),
+        reference_id="PHX_OTHER_CASE_01",
+        amount=499900,
+        currency="INR",
+        status="ISSUED",
+        expires_at=now + timedelta(hours=1),
+        created_at=now - timedelta(hours=1),
+    )
+    result = policy_engine.evaluate(
+        valid_case,
+        valid_plan,
+        default_policy,
+        prior_actions=[],
+        customer_actions=[other_case_action],
+        current_time=now,
+    )
+    assert result.decision == DecisionType.REJECT
+    assert "COOLDOWN_ACTIVE" in result.reason_codes
