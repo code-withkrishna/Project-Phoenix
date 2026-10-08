@@ -42,3 +42,4 @@ class AuditLogEntry(ORMModel):
     actor: str
     context_metadata: dict = Field(default_factory=dict)
     created_at: datetime
+    integrity_hash: str
