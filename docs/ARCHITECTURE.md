@@ -64,7 +64,7 @@ Project Phoenix is designed as a modular, asynchronous, policy-governed revenue 
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHOENIX FRONTEND (Next.js / TypeScript / shadcn/ui)                                               │
+│ EMBEDDED DEMO UI (FastAPI-served HTML/JavaScript)                                               │
 │                                                                                                    │
 │  ┌───────────────────────────────┐  ┌───────────────────────────────┐  ┌─────────────────────────┐ │
 │  │ Recovery Pipeline Dashboard   │  │ Case Details & Reasoner View  │  │ HITL Action / Overrides │ │
