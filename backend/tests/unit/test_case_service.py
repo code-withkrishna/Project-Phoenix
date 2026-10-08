@@ -99,6 +99,7 @@ async def test_case_created_with_detected_state(case_service: RecoveryCaseServic
     assert len(audit_trail) == 1
     assert audit_trail[0].to_state == "DETECTED"
     assert audit_trail[0].trigger == "WEBHOOK_PAYMENT_FAILED"
+    assert len(audit_trail[0].integrity_hash) == 64
 
 
 @pytest.mark.asyncio
