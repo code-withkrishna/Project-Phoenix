@@ -6,6 +6,7 @@ import uuid
 
 import httpx
 import pytest
+import respx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +29,7 @@ from tests.fixtures.razorpay import (
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_webhook_payment_link_paid_success(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -80,6 +82,16 @@ async def test_webhook_payment_link_paid_success(
     event_id = payload_dict.pop("_test_fixture_event_id")
     raw_body = json.dumps(payload_dict, separators=(",", ":")).encode("utf-8")
     headers = webhook_headers(raw_body, event_id=event_id, secret=settings.razorpay_webhook_secret)
+
+    respx.get("https://api.razorpay.com/v1/payments/pay_CAPTURED_001").respond(
+        status_code=200,
+        json={
+            "id": "pay_CAPTURED_001",
+            "status": "captured",
+            "amount": 499900,
+            "currency": "INR",
+        },
+    )
 
     # 1. Ingest webhook
     response = await client.post("/api/v1/webhooks/razorpay", content=raw_body, headers=headers)
