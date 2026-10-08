@@ -232,21 +232,70 @@ class RecoveryCaseService:
             )
             return
 
-        # 5. Verify underlying payment entity is 'captured' (authorized != recovered)
-        if event.payment_status != "captured":
+        # 5. Independently reconcile the underlying payment with Razorpay.
+        # Never mark Phoenix RECOVERED solely from webhook-reported payment state.
+        if not event.payment_id:
+            logger.warning("payment_link.paid has no underlying payment ID")
+            return
+
+        try:
+            reconciliation = await self._reconciliation.reconcile_payment(event.payment_id)
+        except Exception as exc:
             logger.warning(
-                "Underlying payment status is '%s', not 'captured'. Revenue not confirmed recovered.",
-                event.payment_status,
+                "Unable to independently reconcile recovery payment %s: %s",
+                event.payment_id,
+                exc,
+            )
+            await self._repo.append_audit(
+                case_id=case.id,
+                from_state=case.status,
+                to_state=case.status,
+                trigger="RECOVERY_RECONCILIATION_UNAVAILABLE",
+                actor="RECONCILIATION_WORKER",
+                context_metadata={"payment_id": event.payment_id},
+            )
+            return
+
+        if not reconciliation.is_resolved or reconciliation.authoritative_status != "captured":
+            logger.warning(
+                "Recovery payment %s is not authoritatively captured: status=%s",
+                event.payment_id,
+                reconciliation.authoritative_status,
             )
             await self._repo.append_audit(
                 case_id=case.id,
                 from_state=case.status,
                 to_state=case.status,
                 trigger="PAYMENT_NOT_CAPTURED",
-                actor="SYSTEM_WEBHOOK_GATEWAY",
+                actor="RECONCILIATION_WORKER",
                 context_metadata={
                     "payment_id": event.payment_id,
-                    "payment_status": event.payment_status,
+                    "authoritative_status": reconciliation.authoritative_status,
+                },
+            )
+            return
+
+        authoritative_amount = int(reconciliation.payment_data.get("amount", 0))
+        authoritative_currency = str(reconciliation.payment_data.get("currency", "")).upper()
+        if authoritative_amount != action.amount or authoritative_currency != action.currency.upper():
+            logger.warning(
+                "Authoritative recovery payment mismatch: payment_id=%s amount=%s currency=%s",
+                event.payment_id,
+                authoritative_amount,
+                authoritative_currency,
+            )
+            await self._repo.append_audit(
+                case_id=case.id,
+                from_state=case.status,
+                to_state=case.status,
+                trigger="RECOVERY_RECONCILIATION_MISMATCH",
+                actor="RECONCILIATION_WORKER",
+                context_metadata={
+                    "payment_id": event.payment_id,
+                    "authoritative_amount": authoritative_amount,
+                    "authoritative_currency": authoritative_currency,
+                    "expected_amount": action.amount,
+                    "expected_currency": action.currency,
                 },
             )
             return
