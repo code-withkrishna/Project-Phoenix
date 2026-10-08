@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.auth import require_merchant_api_key
 from app.core.database import get_db
 from app.repositories.ai_diagnoses import AIDiagnosisRepository
 from app.repositories.recovery_actions import RecoveryActionRepository
@@ -22,7 +23,7 @@ from app.schemas.recovery_case import (
 from app.services.razorpay.client import RazorpayClient
 from app.services.recovery.executor import RecoveryExecutor
 
-router = APIRouter(prefix="/recovery-cases", tags=["recovery-cases"])
+router = APIRouter(prefix="/recovery-cases", tags=["recovery-cases"], dependencies=[Depends(require_merchant_api_key)])
 
 
 class HITLActionRequest(BaseModel):
