@@ -37,3 +37,4 @@ class AuditLog(Base):
         server_default=func.now(),
         index=True,
     )
+    integrity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
