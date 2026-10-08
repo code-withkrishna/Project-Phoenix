@@ -34,7 +34,7 @@ This document outlines the testing architecture, test suites, edge case scenario
 | Test File | Focus Area | Key Scenarios |
 | :--- | :--- | :--- |
 | `test_signature.py` | HMAC-SHA256 Verification | Valid signature, invalid signature, tampered body, missing header, empty secret. |
-| `test_state_machine.py` | State Transitions | Valid legal transitions, illegal transition rejection, terminal state immutability. |
+| `test_recovery_executor.py` / lifecycle transition coverage | State Transitions | Valid legal transitions, illegal transition rejection, terminal state immutability. |
 | `test_policy_engine.py` | Guardrail Rules | Max retry breach, cooldown window violation, expiry bounds check, amount limits, fail-closed exception test. |
 | `test_ai_schemas.py` | Pydantic Schema Validation | Valid structured output, extra fields rejection, missing required fields, enum violation, boundary clamping. |
 
