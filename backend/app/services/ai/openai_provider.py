@@ -61,7 +61,10 @@ class OpenAICompatibleProvider(AIProvider):
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": f"Analyze this failed payment context and generate a RecoveryPlan:\n{context.model_dump_json(indent=2)}",
+                "content": (
+                    "Analyze this failed payment context and generate a RecoveryPlan:\n"
+                    f"{context.model_dump_json(exclude={'payment_id', 'order_id'}, indent=2)}"
+                ),
             },
         ]
 

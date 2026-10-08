@@ -133,3 +133,38 @@ async def test_openai_provider_http_error_handling(sample_context: DiagnosticCon
     assert "429" in str(exc.value)
     # Ensure raw secret is not in exception message
     assert "test_sk_key_12345" not in str(exc.value)
+
+@pytest.mark.asyncio
+async def test_provider_prompt_excludes_payment_identifiers(respx_mock):
+    provider = OpenAICompatibleProvider(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="test-model",
+    )
+    captured = {}
+
+    route = respx_mock.post("https://example.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{
+                    "message": {
+                        "content": '{"root_cause_category":"USER_FRICTION","confidence_score":0.9,"diagnostic_summary":"OTP timeout","recommended_action":"DISPATCH_PAYMENT_LINK","urgency":"HIGH","link_expiry_minutes":30,"customer_facing_message":"Please retry your payment."}'
+                    }
+                }],
+                "usage": {},
+            },
+        )
+    )
+
+    context = DiagnosticContext(
+        amount_paise=299900,
+        currency="INR",
+        payment_id="pay_SECRET_IDENTIFIER",
+        order_id="order_SECRET_IDENTIFIER",
+    )
+    await provider.generate_plan(context)
+
+    captured_payload = route.calls[0].request.content.decode()
+    assert "pay_SECRET_IDENTIFIER" not in captured_payload
+    assert "order_SECRET_IDENTIFIER" not in captured_payload
