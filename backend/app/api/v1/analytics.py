@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.auth import require_merchant_api_key
 from app.services.analytics.comparison import StrategyAnalyticsEngine
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_merchant_api_key)])
 
 
 @router.get("/comparison")
