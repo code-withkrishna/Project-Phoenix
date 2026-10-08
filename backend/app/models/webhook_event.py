@@ -2,14 +2,24 @@
 
 import uuid
 from datetime import datetime
+
 from sqlalchemy import Boolean, DateTime, Integer, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.core.database import Base
 from app.models.types import JSONType
 
+
 class RawWebhookEvent(Base):
+    """Persisted inbound Razorpay webhook event for idempotent ingestion."""
+
     __tablename__ = "raw_webhook_events"
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        primary_key=True,
+        default=uuid.uuid4,
+    )
     event_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
@@ -19,4 +29,10 @@ class RawWebhookEvent(Base):
     processing_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_processing_error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    payload_redacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payload_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
