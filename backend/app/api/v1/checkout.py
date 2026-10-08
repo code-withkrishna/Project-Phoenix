@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.auth import require_merchant_api_key
 from app.core.database import get_db
 from app.repositories.recovery_cases import RecoveryCaseRepository
 from app.services.razorpay.client import RazorpayAPIError, RazorpayClient
@@ -82,7 +83,7 @@ class SimulateFailureRequest(BaseModel):
         return self
 
 
-@router.post("/create-order", response_model=CreateOrderResponse)
+@router.post("/create-order", response_model=CreateOrderResponse, dependencies=[Depends(require_merchant_api_key)])
 async def create_test_order(
     req: CreateOrderRequest,
     settings: Settings = Depends(get_settings),
@@ -119,7 +120,7 @@ async def create_test_order(
         await client.close()
 
 
-@router.post("/simulate-failure")
+@router.post("/simulate-failure", dependencies=[Depends(require_merchant_api_key)])
 async def simulate_failure_event(
     req: SimulateFailureRequest,
     session: AsyncSession = Depends(get_db),
@@ -1282,11 +1283,29 @@ async def get_test_checkout_portal(
         const RZP_KEY_ID = "{key_id}";
         let currentActiveCaseId = null;
         let pollTimer = null;
+        let phoenixApiKey = sessionStorage.getItem("phoenix_api_key") || "";
 
-        // Defensive fetch wrapper that never throws Unexpected token errors on 500 or non-JSON responses
-        async function safeFetch(url, options = {{}}) {{
+        // The embedded demo cannot safely receive a server-side merchant secret.
+        // Instead, operators can enter their API key in the browser session when
+        // the protected API first returns 401. The key is never embedded in HTML.
+        async function safeFetch(url, options = {{}}, authRetry = false) {{
             try {{
-                const res = await fetch(url, options);
+                const requestOptions = {{ ...options, headers: {{ ...(options.headers || {{}}) }} }};
+                if (phoenixApiKey) {{
+                    requestOptions.headers["X-Phoenix-API-Key"] = phoenixApiKey;
+                }}
+
+                const res = await fetch(url, requestOptions);
+
+                if (res.status === 401 && !authRetry) {{
+                    const enteredKey = window.prompt("Phoenix merchant API key:");
+                    if (enteredKey) {{
+                        phoenixApiKey = enteredKey;
+                        sessionStorage.setItem("phoenix_api_key", enteredKey);
+                        return safeFetch(url, options, true);
+                    }}
+                }}
+
                 const contentType = res.headers.get("content-type") || "";
                 let data = null;
                 if (contentType.includes("application/json")) {{

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     )
     ai_timeout_seconds: float = Field(default=15.0, alias="AI_TIMEOUT_SECONDS")
     auto_orchestrate: bool = Field(default=True, alias="AUTO_ORCHESTRATE")
+    merchant_api_key: str = Field(default="", alias="MERCHANT_API_KEY")
 
 
 

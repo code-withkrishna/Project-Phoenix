@@ -6,9 +6,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.auth import require_merchant_api_key
 from app.services.copilot.engine import MerchantCopilotEngine
 
-router = APIRouter(prefix="/copilot", tags=["copilot"])
+router = APIRouter(prefix="/copilot", tags=["copilot"], dependencies=[Depends(require_merchant_api_key)])
 
 
 class CopilotQueryRequest(BaseModel):
