@@ -37,6 +37,7 @@ class PolicyEngine:
         plan: RecoveryPlan,
         policy: MerchantPolicy | None = None,
         prior_actions: Sequence[RecoveryAction] | None = None,
+        customer_actions: Sequence[RecoveryAction] | None = None,
         current_time: datetime | None = None,
     ) -> PolicyDecision:
         """Deterministically evaluate a proposed RecoveryPlan against merchant and system guardrails."""
@@ -108,6 +109,28 @@ class PolicyEngine:
                         passed=True,
                         details="Merchant policy valid.",
                     )
+                )
+
+            # Merchant-controlled autonomous execution gate. A disabled merchant
+            # policy must never be bypassed by an AI plan.
+            if not policy.auto_execute_enabled:
+                reason_codes.append("AUTO_EXECUTION_DISABLED")
+                evaluated_rules.append(
+                    PolicyRuleResult(
+                        rule_id=PolicyRuleId.POL_007.value,
+                        rule_name="Merchant Constraints",
+                        passed=False,
+                        details="Autonomous execution is disabled for this merchant.",
+                        code="AUTO_EXECUTION_DISABLED",
+                    )
+                )
+                return PolicyDecision(
+                    decision=DecisionType.ESCALATE,
+                    action="HUMAN_REVIEW",
+                    reason_codes=reason_codes,
+                    constraints={},
+                    evaluated_rules=evaluated_rules,
+                    violations=[],
                 )
 
             # POL-001: Action Whitelist
@@ -304,9 +327,10 @@ class PolicyEngine:
 
             # POL-005: Customer Cooldown
             actions = list(prior_actions or [])
-            if actions:
-                # Find most recent action
-                latest_action = max(actions, key=lambda a: a.created_at)
+            cooldown_actions = list(customer_actions) if customer_actions is not None else actions
+            if cooldown_actions:
+                # Find the most recent recovery action for this customer.
+                latest_action = max(cooldown_actions, key=lambda a: a.created_at)
                 action_created_at = latest_action.created_at
                 if action_created_at.tzinfo is None:
                     action_created_at = action_created_at.replace(tzinfo=timezone.utc)
