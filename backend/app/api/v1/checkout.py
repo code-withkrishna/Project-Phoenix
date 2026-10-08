@@ -5,12 +5,13 @@ import hmac
 import json
 import logging
 import time
+from decimal import Decimal, InvalidOperation
 from typing import Any
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -43,10 +44,41 @@ class CreateOrderResponse(BaseModel):
 
 class SimulateFailureRequest(BaseModel):
     scenario: str = Field(default="otp_friction", description="Simulation scenario preset")
-    amount_inr: float = Field(default=2999.0, description="Amount in INR")
+    amount_paise: int | None = Field(
+        default=None,
+        ge=100,
+        le=1_000_000_000,
+        description="Canonical amount in paise (₹1 to ₹1 crore)",
+    )
+    # Backward-compatible input for existing demo clients. It is converted to
+    # integer paise immediately and never used for financial calculations.
+    amount_inr: Decimal | None = Field(default=None, description="Deprecated amount in INR")
     customer_name: str = Field(default="Aditya Sharma")
     customer_email: str = Field(default="aditya.sharma@example.com")
     customer_phone: str = Field(default="+919876543210")
+
+    @model_validator(mode="after")
+    def normalize_amount(self) -> "SimulateFailureRequest":
+        if self.amount_paise is not None and self.amount_inr is not None:
+            raise ValueError("Provide only amount_paise; amount_inr is deprecated")
+        if self.amount_paise is None and self.amount_inr is None:
+            self.amount_paise = 299900
+            return self
+        if self.amount_paise is not None:
+            return self
+
+        try:
+            paise = self.amount_inr * Decimal("100")
+        except (InvalidOperation, TypeError):
+            raise ValueError("amount_inr must be a valid monetary amount") from None
+
+        if paise != paise.to_integral_value():
+            raise ValueError("amount_inr must represent a whole number of paise")
+        normalized = int(paise)
+        if not 100 <= normalized <= 1_000_000_000:
+            raise ValueError("amount_inr must be between ₹1 and ₹1 crore")
+        self.amount_paise = normalized
+        return self
 
 
 @router.post("/create-order", response_model=CreateOrderResponse)
@@ -95,7 +127,7 @@ async def simulate_failure_event(
     """1-Click failure simulator for rapid evaluation and demonstration."""
     payment_id = f"pay_phx_{uuid.uuid4().hex[:12]}"
     order_id = f"order_phx_{uuid.uuid4().hex[:10]}"
-    amount_paise = int(req.amount_inr * 100)
+    amount_paise = req.amount_paise
 
     # Scenarios mapping
     scenario_configs = {
@@ -190,13 +222,10 @@ async def simulate_failure_event(
         await dispatcher.process_event(stored_event.event_id)
     except Exception as exc:
         logger.exception("Simulation execution encountered error for scenario '%s': %s", req.scenario, exc)
-        return {
-            "success": False,
-            "error": {
-                "code": "RECOVERY_SIMULATION_FAILED",
-                "message": f"Unable to process the failure scenario: {str(exc)}",
-            },
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to process the requested failure simulation.",
+        ) from exc
     finally:
         await client.close()
 

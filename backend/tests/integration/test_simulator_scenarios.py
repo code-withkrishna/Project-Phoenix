@@ -84,3 +84,46 @@ async def test_non_200_and_error_handling_returns_structured_json(client) -> Non
     data = res.json()
     assert "detail" in data or "error" in data
     assert "Traceback" not in res.text
+
+@pytest.mark.asyncio
+async def test_simulator_rejects_invalid_amount(client: httpx.AsyncClient):
+    response = await client.post(
+        "/api/v1/checkout/simulate-failure",
+        json={"scenario": "otp_friction", "amount_paise": 0},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_simulator_does_not_expose_internal_exception(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async def explode(*args, **kwargs):
+        raise RuntimeError("SECRET_INTERNAL_DATABASE_DETAILS")
+
+    monkeypatch.setattr(
+        "app.services.webhooks.dispatcher.WebhookDispatcher.process_event",
+        explode,
+    )
+    response = await client.post(
+        "/api/v1/checkout/simulate-failure",
+        json={"scenario": "otp_friction", "amount_paise": 299900},
+    )
+    assert response.status_code == 500
+    assert "SECRET_INTERNAL_DATABASE_DETAILS" not in response.text
+
+
+def test_simulator_amount_inr_is_converted_to_paise_without_float_rounding():
+    from app.api.v1.checkout import SimulateFailureRequest
+
+    req = SimulateFailureRequest(amount_inr=2999)
+    assert req.amount_paise == 299900
+
+
+def test_simulator_rejects_conflicting_amount_fields():
+    from pydantic import ValidationError
+    from app.api.v1.checkout import SimulateFailureRequest
+
+    with pytest.raises(ValidationError):
+        SimulateFailureRequest(amount_paise=299900, amount_inr=2999)
