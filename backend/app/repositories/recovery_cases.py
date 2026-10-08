@@ -1,5 +1,7 @@
 """Recovery case repository."""
 
+import hashlib
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -10,6 +12,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from app.models.recovery_case import RecoveryCase
 from app.schemas.ai import CustomerHistoryContext
+
+
+
+
+def _audit_integrity_hash(audit: AuditLog) -> str:
+    """Return a deterministic digest of immutable audit fields."""
+    payload = {
+        "id": str(audit.id),
+        "case_id": str(audit.case_id) if audit.case_id else None,
+        "from_state": audit.from_state,
+        "to_state": audit.to_state,
+        "trigger": audit.trigger,
+        "actor": audit.actor,
+        "context_metadata": audit.context_metadata,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
 
 
 class RecoveryCaseRepository:
@@ -137,6 +157,8 @@ class RecoveryCaseRepository:
             context_metadata=context_metadata or {},
         )
         self._session.add(audit)
+        await self._session.flush()
+        audit.integrity_hash = _audit_integrity_hash(audit)
         await self._session.commit()
         await self._session.refresh(case)
         return case
@@ -161,6 +183,8 @@ class RecoveryCaseRepository:
             context_metadata=context_metadata or {},
         )
         self._session.add(audit)
+        await self._session.flush()
+        audit.integrity_hash = _audit_integrity_hash(audit)
         await self._session.commit()
         await self._session.refresh(audit)
         return audit
