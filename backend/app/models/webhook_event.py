@@ -29,6 +29,7 @@ class RawWebhookEvent(Base):
     processing_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_processing_error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    payload_redacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
