@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.logging import bind_log_context, new_correlation_id
 from app.schemas.webhook import WebhookAckResponse
 from app.services.razorpay.webhook_verifier import verify_razorpay_webhook_signature
-from app.services.webhooks.dispatcher import process_webhook_event_background
+
 from app.services.webhooks.ingestion import WebhookIngestionError, WebhookIngestionService
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,6 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 @router.post("/razorpay", response_model=WebhookAckResponse)
 async def receive_razorpay_webhook(
     request: Request,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> WebhookAckResponse:
@@ -62,13 +61,6 @@ async def receive_razorpay_webhook(
         payload=payload,
         signature=signature or "",
     )
-
-    if created:
-        background_tasks.add_task(
-            process_webhook_event_background,
-            event_id,
-            settings.database_url,
-        )
 
     action_taken = "INGESTED" if created else "DEDUPLICATED"
     logger.info(
