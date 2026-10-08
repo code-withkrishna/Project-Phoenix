@@ -28,6 +28,7 @@ class TimestampedModel(ORMModel):
     """Mixin for created/updated timestamps."""
 
     created_at: datetime
+    integrity_hash: str
     updated_at: datetime | None = None
 
 
