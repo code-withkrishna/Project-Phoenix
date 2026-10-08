@@ -18,6 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add integrity hashes and prevent audit-row mutation."""
+    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
     op.add_column(
         "audit_logs",
         sa.Column("integrity_hash", sa.String(length=64), nullable=True),
