@@ -151,22 +151,6 @@ class WebhookDispatcher:
         await self._webhook_repo.mark_processed(event_id)
 
 
-async def process_webhook_event_background(event_id: str, database_url: str) -> None:
-    """Background task entrypoint with its own DB session."""
-    from app.core.config import get_settings
-    from app.core.database import get_session_factory, init_db
-
-    settings = get_settings()
-    init_db(database_url)
-    session_factory = get_session_factory()
-
-    async with session_factory() as session:
-        dispatcher = WebhookDispatcher(session, settings)
-        try:
-            await dispatcher.process_event(event_id)
-        finally:
-            await dispatcher.close()
-
 async def run_webhook_worker(settings: Settings, stop_event) -> None:
     """Continuously drain durable webhook jobs until shutdown."""
     import asyncio
