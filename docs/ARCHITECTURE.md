@@ -55,7 +55,7 @@ Project Phoenix is designed as a modular, asynchronous, policy-governed revenue 
 │              ▼                                                                                     │
 │  ┌─────────────────────────┐                           ┌─────────────────────────┐                 │
 │  │ 8. State Machine &      │                           │ 9. Audit Trail & Log    │                 │
-│  │    Case Lifecycle Mgr   ├──────────────────────────►│    Store (Immutable)    │                 │
+│  │    Case Lifecycle Mgr   ├──────────────────────────►│    Store (Append-Oriented)    │                 │
 │  └─────────────────────────┘                           └─────────────────────────┘                 │
 │                                                                                                    │
 └──────────────────────────────────────────┬─────────────────────────────────────────────────────────┘
