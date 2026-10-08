@@ -94,7 +94,14 @@ class AIRecoveryPlanner:
         else:
             case = case_or_id
 
-        # 1. Transition state machine to DIAGNOSING using existing repository mechanism
+        # 1. Only DETECTED cases may enter the autonomous diagnosis pipeline.
+        if case.status != "DETECTED":
+            return PlannerResult(
+                success=False,
+                case=case,
+                error=f"Planner cannot start from state {case.status}; expected DETECTED",
+            )
+
         case = await self._case_repo.update_status(
             case,
             new_status="DIAGNOSING",
