@@ -47,7 +47,7 @@ Customer Payment on Link (payment_link.paid webhook)
              ↓
 Outcome Verification & State Transition (Status: RECOVERED)
              ↓
-Immutable Audit Record Persisted
+Append-oriented Audit Record Persisted
 ```
 
 ---
