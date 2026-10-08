@@ -42,6 +42,7 @@ class WebhookDispatcher:
         settings: Settings,
         *,
         razorpay_client: RazorpayClient | None = None,
+        reconciliation_service: PaymentReconciliationService | None = None,
         ai_provider: AIProvider | None = None,
         policy_engine: PolicyEngine | None = None,
         execution_guard: ExecutionGuard | None = None,
@@ -54,7 +55,7 @@ class WebhookDispatcher:
         self._case_repo = RecoveryCaseRepository(session)
         self._owns_client = razorpay_client is None
         self._razorpay_client = razorpay_client or RazorpayClient(settings)
-        self._reconciliation = PaymentReconciliationService(self._razorpay_client)
+        self._reconciliation = reconciliation_service or PaymentReconciliationService(self._razorpay_client)
         self._auto_orchestrate = (
             auto_orchestrate
             if auto_orchestrate is not None
