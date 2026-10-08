@@ -253,3 +253,29 @@ async def test_recovery_executor_policy_rejected(
         assert result.action is None
     finally:
         await client.close()
+
+@pytest.mark.asyncio
+async def test_case_state_machine_rejects_illegal_transition(
+    db_session: AsyncSession,
+) -> None:
+    repo = RecoveryCaseRepository(db_session)
+    case, _ = await repo.create_if_absent(
+        payment_id=f"pay_EXEC_STATE_{uuid.uuid4().hex[:6]}",
+        order_id="order_EXEC_STATE_01",
+        amount=499900,
+        currency="INR",
+        customer_email="shopper@example.com",
+        customer_phone="+919876543210",
+        failure_code="BAD_REQUEST_ERROR",
+        failure_reason="payment_cancelled",
+        failure_telemetry={},
+        status="RECOVERED",
+    )
+    assert case is not None
+    with pytest.raises(ValueError):
+        await repo.update_status(
+            case,
+            new_status="EXECUTING",
+            trigger="TEST_INVALID_TRANSITION",
+            actor="TEST",
+        )
