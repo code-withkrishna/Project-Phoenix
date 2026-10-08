@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -26,6 +26,9 @@ class RawWebhookEvent(Base):
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False)
     signature: Mapped[str] = mapped_column(String(256), nullable=False)
     is_processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    processing_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_processing_error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
