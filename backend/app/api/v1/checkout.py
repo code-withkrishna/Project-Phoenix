@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.auth import require_merchant_api_key
 from app.core.database import get_db
 from app.repositories.recovery_cases import RecoveryCaseRepository
 from app.services.razorpay.client import RazorpayAPIError, RazorpayClient
@@ -49,7 +50,7 @@ class SimulateFailureRequest(BaseModel):
     customer_phone: str = Field(default="+919876543210")
 
 
-@router.post("/create-order", response_model=CreateOrderResponse)
+@router.post("/create-order", response_model=CreateOrderResponse, dependencies=[Depends(require_merchant_api_key)])
 async def create_test_order(
     req: CreateOrderRequest,
     settings: Settings = Depends(get_settings),
