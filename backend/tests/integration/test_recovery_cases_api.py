@@ -116,3 +116,23 @@ async def test_get_recovery_case_not_found(client):
         "/api/v1/recovery-cases/00000000-0000-0000-0000-000000000001"
     )
     assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_merchant_api_requires_key_outside_development(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("MERCHANT_API_KEY", "test-merchant-key")
+    from app.core.config import get_settings
+    get_settings.cache_clear()
+
+    response = await client.get("/api/v1/recovery-cases")
+    assert response.status_code == 401
+
+    response = await client.get(
+        "/api/v1/recovery-cases",
+        headers={"X-Phoenix-API-Key": "test-merchant-key"},
+    )
+    assert response.status_code == 200
+    get_settings.cache_clear()
