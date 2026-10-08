@@ -166,3 +166,41 @@ async def process_webhook_event_background(event_id: str, database_url: str) -> 
             await dispatcher.process_event(event_id)
         finally:
             await dispatcher.close()
+
+async def run_webhook_worker(settings: Settings, stop_event) -> None:
+    """Continuously drain durable webhook jobs until shutdown."""
+    import asyncio
+    from app.core.database import get_session_factory, init_db
+
+    init_db(settings.database_url)
+    while not stop_event.is_set():
+        try:
+            session_factory = get_session_factory()
+            async with session_factory() as session:
+                repo = WebhookEventRepository(session)
+                event_ids = await repo.list_pending_event_ids(settings.webhook_worker_batch_size)
+                for event_id in event_ids:
+                    dispatcher = WebhookDispatcher(session, settings)
+                    try:
+                        await dispatcher.process_event(event_id)
+                    finally:
+                        await dispatcher.close()
+            if not event_ids:
+                try:
+                    await asyncio.wait_for(
+                        stop_event.wait(),
+                        timeout=settings.webhook_worker_interval_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    pass
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Durable webhook worker iteration failed")
+            try:
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=settings.webhook_worker_interval_seconds,
+                )
+            except asyncio.TimeoutError:
+                pass
