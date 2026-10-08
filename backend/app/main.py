@@ -1,6 +1,7 @@
 \
 """FastAPI application entry point."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -12,6 +13,7 @@ from app.api.v1.router import api_v1_router
 from app.core.config import get_settings
 from app.core.database import close_db, init_db
 from app.core.logging import setup_logging
+from app.services.webhooks.dispatcher import run_webhook_worker
 from app.services.webhooks.ingestion import WebhookIngestionError
 
 logger = logging.getLogger(__name__)
@@ -23,13 +25,23 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.log_level)
     init_db(settings.database_url)
+    stop_event = asyncio.Event()
+    worker_task = asyncio.create_task(run_webhook_worker(settings, stop_event))
     logger.info(
         "Application started: environment=%s service=%s",
         settings.environment,
         settings.app_name,
     )
-    yield
-    await close_db()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
+        await close_db()
     logger.info("Application shutdown complete")
 
 
