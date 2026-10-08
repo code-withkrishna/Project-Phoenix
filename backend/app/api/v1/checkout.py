@@ -87,7 +87,7 @@ async def create_test_order(
         await client.close()
 
 
-@router.post("/simulate-failure")
+@router.post("/simulate-failure", dependencies=[Depends(require_merchant_api_key)])
 async def simulate_failure_event(
     req: SimulateFailureRequest,
     session: AsyncSession = Depends(get_db),
