@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Uuid, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -13,6 +13,16 @@ class RecoveryAction(Base):
     """Specific recovery action executed for a recovery case (e.g., Razorpay Payment Link)."""
 
     __tablename__ = "recovery_actions"
+
+    __table_args__ = (
+        Index(
+            "uq_recovery_actions_active_case",
+            "case_id",
+            unique=True,
+            postgresql_where=text("status IN ('PENDING', 'ISSUED')"),
+            sqlite_where=text("status IN ('PENDING', 'ISSUED')"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
