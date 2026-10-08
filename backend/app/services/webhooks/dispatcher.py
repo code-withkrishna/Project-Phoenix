@@ -91,6 +91,19 @@ class WebhookDispatcher:
             logger.info("Webhook already processed: event_id=%s", event_id)
             return
 
+        if not await self._webhook_repo.claim_for_processing(event_id):
+            logger.info("Webhook processing already claimed: event_id=%s", event_id)
+            return
+
+        try:
+            await self._process_claimed_event(event)
+        except Exception as exc:
+            await self._webhook_repo.mark_processing_failed(event_id, str(exc))
+            logger.exception("Webhook processing failed; event will be retried: event_id=%s", event_id)
+            raise
+
+    async def _process_claimed_event(self, event) -> None:
+        event_id = event.event_id
         if event.event_type not in SUPPORTED_EVENTS:
             logger.info(
                 "Unsupported webhook event acknowledged without processing: event_id=%s type=%s",
