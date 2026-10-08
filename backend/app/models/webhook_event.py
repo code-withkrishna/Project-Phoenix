@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -15,19 +15,14 @@ class RawWebhookEvent(Base):
 
     __tablename__ = "raw_webhook_events"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        primary_key=True,
-        default=uuid.uuid4,
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     event_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False)
     signature: Mapped[str] = mapped_column(String(256), nullable=False)
     is_processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
+    processing_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_processing_error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
