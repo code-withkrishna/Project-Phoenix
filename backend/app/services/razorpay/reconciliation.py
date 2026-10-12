@@ -66,11 +66,17 @@ class PaymentReconciliationService:
 class SimulationPaymentReconciliationService:
     """Deterministic reconciliation adapter for Phoenix's synthetic failure simulator."""
 
+    def __init__(self, *, amount: int, currency: str = "INR") -> None:
+        if amount <= 0:
+            raise ValueError("Simulation amount must be positive")
+        self._amount = amount
+        self._currency = currency.upper()
+
     async def reconcile_payment(self, payment_id: str) -> ReconciliationResult:
         return ReconciliationResult(
             payment_id=payment_id,
             authoritative_status="failed",
             is_resolved=False,
             is_failed=True,
-            payment_data={"id": payment_id, "status": "failed"},
+            payment_data={"id": payment_id, "status": "failed", "amount": self._amount, "currency": self._currency},
         )
