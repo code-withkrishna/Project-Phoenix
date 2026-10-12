@@ -72,7 +72,7 @@ async def run_webhook_worker(settings: Settings, stop_event: asyncio.Event) -> N
     init_db(settings.database_url)
     while not stop_event.is_set():
         try:
-            async with get_session_factory() as session:
+            async with get_session_factory()() as session:
                 repo = WebhookEventRepository(session)
                 event_ids = await repo.list_pending_event_ids(settings.webhook_worker_batch_size)
                 for event_id in event_ids:
