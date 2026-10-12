@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Literal
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -45,7 +45,7 @@ class CreateOrderResponse(BaseModel):
 
 
 class SimulateFailureRequest(BaseModel):
-    scenario: str = Field(default="otp_friction", description="Simulation scenario preset")
+    scenario: Literal["otp_friction", "insufficient_funds", "bank_downtime", "card_expired", "high_value", "fraud_security"] = Field(default="otp_friction", description="Simulation scenario preset")
     amount_paise: int | None = Field(
         default=None,
         ge=100,
@@ -172,7 +172,7 @@ async def simulate_failure_event(
         },
     }
 
-    config = scenario_configs.get(req.scenario, scenario_configs["otp_friction"])
+    config = scenario_configs[req.scenario]
     if "override_amount" in config and req.scenario == "high_value":
         amount_paise = config["override_amount"]
 
@@ -223,7 +223,7 @@ async def simulate_failure_event(
             session,
             settings,
             razorpay_client=client,
-            reconciliation_service=SimulationPaymentReconciliationService(),
+            reconciliation_service=SimulationPaymentReconciliationService(amount=amount_paise, currency="INR"),
             auto_orchestrate=True,
         )
         # Pass stored_event.event_id so repository query resolves correctly

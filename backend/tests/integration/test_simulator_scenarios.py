@@ -86,6 +86,15 @@ async def test_non_200_and_error_handling_returns_structured_json(client) -> Non
     assert "Traceback" not in res.text
 
 @pytest.mark.asyncio
+async def test_simulator_rejects_unknown_scenario(client: httpx.AsyncClient):
+    response = await client.post(
+        "/api/v1/checkout/simulate-failure",
+        json={"scenario": "not-a-real-scenario"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_simulator_rejects_invalid_amount(client: httpx.AsyncClient):
     response = await client.post(
         "/api/v1/checkout/simulate-failure",

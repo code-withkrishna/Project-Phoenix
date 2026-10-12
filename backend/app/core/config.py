@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = Field(default=15.0, alias="AI_TIMEOUT_SECONDS")
     auto_orchestrate: bool = Field(default=True, alias="AUTO_ORCHESTRATE")
     merchant_api_key: str = Field(default="", alias="MERCHANT_API_KEY")
+    phoenix_insecure_dev: bool = Field(default=False, alias="PHOENIX_INSECURE_DEV")
     webhook_worker_interval_seconds: float = Field(default=2.0, alias="WEBHOOK_WORKER_INTERVAL_SECONDS", ge=0.5, le=60.0)
     webhook_worker_batch_size: int = Field(default=25, alias="WEBHOOK_WORKER_BATCH_SIZE", ge=1, le=100)
 

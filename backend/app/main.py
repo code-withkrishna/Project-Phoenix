@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.log_level)
+    if not settings.merchant_api_key and not (
+        settings.phoenix_insecure_dev and settings.environment in {"development", "test"}
+    ):
+        raise RuntimeError(
+            "MERCHANT_API_KEY is required. For local-only development, explicitly set "
+            "PHOENIX_INSECURE_DEV=1 and keep the server bound to 127.0.0.1."
+        )
     init_db(settings.database_url)
     stop_event = asyncio.Event()
     worker_task = asyncio.create_task(run_webhook_worker(settings, stop_event))
