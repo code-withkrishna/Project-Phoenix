@@ -17,7 +17,7 @@ async def require_merchant_api_key(
         settings.phoenix_insecure_dev
         and settings.environment in {"development", "test"}
         and request.client is not None
-        and request.client.host in {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}
+        and request.client.host in {"127.0.0.1", "::1"}
         and not settings.merchant_api_key
     ):
         return
