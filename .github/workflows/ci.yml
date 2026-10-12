@@ -50,6 +50,7 @@ jobs:
         working-directory: backend
     env:
       DATABASE_URL: postgresql+asyncpg://phoenix:phoenix@localhost:5432/phoenix
+      TEST_DATABASE_URL: postgresql+asyncpg://phoenix:phoenix@localhost:5432/phoenix
       ENVIRONMENT: test
       RAZORPAY_WEBHOOK_SECRET: test_webhook_secret
       RAZORPAY_KEY_ID: rzp_test_ci
