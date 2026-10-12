@@ -305,7 +305,7 @@ class RecoveryCaseService:
 
         try:
             reconciliation = await self._reconciliation.reconcile_payment(event.payment_id)
-        except Exception:
+        except Exception as exc:
             await self._repo.append_audit(
                 case_id=case.id,
                 from_state=case.status,
@@ -314,7 +314,9 @@ class RecoveryCaseService:
                 actor="RECONCILIATION_WORKER",
                 context_metadata={"payment_id": event.payment_id},
             )
-            return
+            raise ReconciliationUnavailableError(
+                f"Unable to reconcile recovered payment {event.payment_id}; webhook must remain retryable"
+            ) from exc
 
         if not reconciliation.is_resolved or reconciliation.authoritative_status != "captured":
             await self._repo.append_audit(
